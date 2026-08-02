@@ -1,0 +1,28 @@
+# =============================================================================
+# Feltöltési könyvtár védelme
+# =============================================================================
+# A felhasználó által feltöltött fájlok soha nem futtathatók szkriptként.
+# Csak képek kiszolgálása engedélyezett.
+# =============================================================================
+
+# Szkript futtatás kikapcsolása
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .phar
+
+# Szkript kiterjesztésű fájlok elérésének tiltása
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phar|pl|py|cgi|sh|asp|aspx|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Könyvtárlistázás tiltása
+Options -Indexes -ExecCGI

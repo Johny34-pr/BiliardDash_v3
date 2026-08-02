@@ -1,0 +1,68 @@
+# =============================================================================
+# Magyar Biliárd Weboldal - Gyökér szintű Apache konfiguráció
+# =============================================================================
+#
+# A XAMPP DocumentRoot a htdocs könyvtár, az alkalmazás belépési pontja
+# viszont a public/index.php. Ez a fájl minden bejövő kérést a public/
+# könyvtárba irányít, így az alkalmazás a http://localhost/ címen elérhető
+# anélkül, hogy a httpd.conf DocumentRoot beállítását módosítani kellene.
+#
+# Mellékhatásként a projekt forráskódja (src/, config/, vendor/, tests/,
+# database/, .env) nem érhető el böngészőből, mert minden kérés a
+# public/ könyvtárba képződik le.
+# =============================================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # ---------------------------------------------------------------------
+    # 1. Végtelen ciklus elkerülése: a már public/-ba mutató kéréseket
+    #    nem írjuk át újra.
+    # ---------------------------------------------------------------------
+    RewriteRule ^public/ - [L]
+
+    # ---------------------------------------------------------------------
+    # 2. Létező statikus fájlok kiszolgálása a public/ könyvtárból
+    #    (assets/css, assets/js, assets/images, uploads/albums/...)
+    # ---------------------------------------------------------------------
+    RewriteCond %{DOCUMENT_ROOT}/public/$1 -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # ---------------------------------------------------------------------
+    # 3. Minden egyéb kérés a front controllerhez
+    #    A REQUEST_URI változatlan marad, így a Router az eredeti
+    #    útvonalat kapja (pl. /galeria, /hirek/{id}, /admin/versenyek).
+    # ---------------------------------------------------------------------
+    RewriteRule ^ public/index.php [L]
+</IfModule>
+
+# =============================================================================
+# Ha a mod_rewrite nem elérhető, legalább a könyvtárlistázás legyen tiltva
+# és az index.php legyen az alapértelmezett dokumentum.
+# =============================================================================
+<IfModule !mod_rewrite.c>
+    DirectoryIndex public/index.php
+</IfModule>
+
+Options -Indexes
+
+# =============================================================================
+# Érzékeny fájlok explicit védelme (védelem a rewrite szabályok mellett)
+# =============================================================================
+<FilesMatch "^(\.env|\.env\.example|composer\.json|composer\.lock|composer\.phar|phpunit\.xml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# =============================================================================
+# Karakterkódolás
+# =============================================================================
+<IfModule mod_mime.c>
+    AddDefaultCharset UTF-8
+</IfModule>

@@ -1,0 +1,71 @@
+# ==========================================================================
+# Környezeti beállítások és titkos adatok
+# ==========================================================================
+# A .env adatbázis- és SMTP-hozzáféréseket, valamint az admin jelszót
+# tartalmazza, ezért soha nem kerülhet verziókövetésbe.
+# A .env.example minta marad, kitöltött értékek nélkül.
+.env
+.env.local
+.env.*.local
+
+# ==========================================================================
+# Composer függőségek
+# ==========================================================================
+# A vendor/ könyvtár a composer.lock alapján bármikor újraépíthető
+# a "composer install" paranccsal.
+/vendor/
+composer.phar
+
+# ==========================================================================
+# Tesztelés
+# ==========================================================================
+/.phpunit.cache/
+.phpunit.result.cache
+/coverage/
+/build/
+
+# ==========================================================================
+# Felhasználó által feltöltött tartalom
+# ==========================================================================
+# A galéria képei futásidőben keletkeznek, nem a projekt része.
+# A könyvtárstruktúrát a .gitkeep fájlok tartják meg.
+/public/uploads/albums/*
+!/public/uploads/albums/.gitkeep
+
+# ==========================================================================
+# Naplófájlok
+# ==========================================================================
+*.log
+/logs/
+
+# ==========================================================================
+# Operációs rendszer által generált fájlok
+# ==========================================================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# ==========================================================================
+# Szerkesztők és fejlesztői eszközök
+# ==========================================================================
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# ==========================================================================
+# Ideiglenes fájlok
+# ==========================================================================
+*.tmp
+*.bak
+*.orig
