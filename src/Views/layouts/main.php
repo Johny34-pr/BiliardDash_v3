@@ -18,6 +18,14 @@
 
     <a href="#main-content" class="skip-link">Ugrás a tartalomra</a>
 
+    <?php
+    // Szervezői mód jelzése a publikus oldalon, hogy a két szerep ne
+    // keveredjen össze, és ne maradjon észrevétlenül aktív a hozzáférés.
+    if (\App\Core\Session::isAdmin()) {
+        require __DIR__ . '/../partials/admin-mode-bar.php';
+    }
+    ?>
+
     <?php require __DIR__ . '/../partials/header.php'; ?>
 
     <main id="main-content" class="flex-1 container mx-auto px-4 py-10 md:py-14">

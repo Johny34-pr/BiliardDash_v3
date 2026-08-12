@@ -57,10 +57,32 @@ $quickActions = [
 ?>
 
 <header class="mb-8">
-    <p class="eyebrow mb-2">Adminisztráció</p>
+    <p class="eyebrow mb-2">Szervezői felület</p>
     <h1 class="text-2xl md:text-3xl font-bold tracking-tightest text-billiard-green-900">Áttekintés</h1>
     <p class="text-sand-500 mt-1">A tartalom állapota és a gyakori műveletek.</p>
 </header>
+
+<!--
+    Rövid magyarázat a két szerep viszonyáról: a szervezői hozzáférés
+    közös, jelszóalapú, és független a látogatói fiókoktól.
+-->
+<div class="alert alert-info mb-8">
+    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+    </svg>
+    <div class="text-sm">
+        <p class="alert-title mb-0.5">Szervezői módban vagy</p>
+        <p>
+            Ez a felület a látogatói fiókoktól független, közös jelszóval érhető el.
+            A <span class="font-medium">Szervezői kilépés</span> csak ezt a hozzáférést zárja be,
+            a látogatói fiókodat nem.
+            <?php if (\App\Core\Session::isUser()): ?>
+                A saját nevezéseidet a
+                <a href="/fiok" class="font-medium underline">látogatói fiókodban</a> találod.
+            <?php endif; ?>
+        </p>
+    </div>
+</div>
 
 <!-- Statisztikák -->
 <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 mb-8">

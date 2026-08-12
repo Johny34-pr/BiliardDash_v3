@@ -267,7 +267,8 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 │   ├── Views/
 │   │   ├── layouts/            → main.php (publikus), admin.php
 │   │   ├── partials/           → head.php (design tokenek), header.php,
-│   │   │                         navigation.php, footer.php, tinymce.php
+│   │   │                         navigation.php, account-menu.php,
+│   │   │                         admin-mode-bar.php, footer.php, tinymce.php
 │   │   ├── home|news|gallery|competitions/  → publikus nézetek
 │   │   ├── forum/              → index.php (topiklista), create.php, show.php
 │   │   ├── auth/               → login.php, register.php
@@ -282,7 +283,22 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 
 ## Nevezés és felhasználói fiókok
 
-Kétféle azonosítási szint létezik, egymástól függetlenül: a **publikus felhasználói fiók** (nevezésekhez) és a **szervezői/admin belépés** (tartalomkezeléshez). A `Session` osztály mindkettőt kezeli, és külön-külön léptethetők ki.
+Kétféle azonosítás létezik, egymástól függetlenül. A `Session` osztály mindkettőt kezeli, és külön-külön léptethetők ki.
+
+| | Látogatói fiók | Szervezői hozzáférés |
+| --- | --- | --- |
+| Mire szolgál | nevezés, fórum, saját nevezések | hírek, galéria, versenyek, fórum kezelése |
+| Belépés | `/belepes`, e-mail + jelszó | `/admin/login`, közös jelszó (e-mail nélkül) |
+| Kilépés | `/kilepes` | `/admin/logout` |
+| Session kulcs | `user` | `is_admin` |
+| Kötelező-e | nem, vendégként is működik minden | csak szervezőknek |
+
+A kettő nem zárja ki egymást: valaki lehet csak látogató, csak szervező, mindkettő, vagy egyik sem. Ezért a felület mindenhol **megnevezve** mutatja a két szerepet, nem általános „fiók" címke alatt:
+
+- **Fejléc:** egyetlen fiókmenü (`partials/account-menu.php`), amelyben a két szerep külön, feliratozott szakaszban van, mindkettőhöz rövid magyarázattal. Korábban két párhuzamos sáv volt, két különböző szóval a kilépésre — abból nem derült ki, melyik gomb melyik szerepre hat.
+- **Jelzősáv:** ha szervezői mód aktív, a publikus oldalak tetején arany sáv jelenik meg (`partials/admin-mode-bar.php`), hogy a hozzáférés ne maradhasson észrevétlenül bekapcsolva.
+- **Egységes szóhasználat:** a látogatói fióknál „Belépés" / „Kilépés a fiókból", a szervezőinél „Szervezői belépés" / „Kilépés a szervezői módból". Az admin felület kilépés gombja is „Szervezői kilépés", és jelzi, hogy a látogatói fiókot nem érinti.
+- **Kereszthivatkozások:** mindkét belépő oldal elmondja, mire szolgál, és hova kell menni a másikért.
 
 **Nevezés három módon.** A nevező adatai (`full_name`, `email`, `phone`) mindig magán a nevezésen vannak, ezért egy fiók több személynek is rögzíthet nevezést:
 

@@ -41,24 +41,40 @@
                 </nav>
             </div>
 
-            <!-- Fiók és adminisztráció -->
+            <!--
+                A kétféle azonosítás külön hasábban, megnevezve: korábban egy
+                "Fiók" cím alá került mindkettő, ami azt sugallta, hogy
+                ugyanolyan belépésről van szó.
+            -->
             <div>
                 <h2 class="text-[0.6875rem] font-semibold uppercase tracking-wider text-billiard-gold-300/80 mb-3">
-                    Fiók
+                    Látogatói fiók
                 </h2>
-                <nav class="flex flex-col gap-1 -ml-3" aria-label="Fiók navigáció">
+                <p class="text-xs leading-relaxed text-white/40 mb-2 max-w-xs">
+                    Nevezésekhez és a fórumhoz. Nem kötelező, de kényelmesebb vele.
+                </p>
+                <nav class="flex flex-col gap-1 -ml-3" aria-label="Látogatói fiók navigáció">
                     <?php if (\App\Core\Session::isUser()): ?>
                         <a href="/fiok" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Nevezéseim</a>
-                        <a href="/kilepes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Kilépés</a>
+                        <a href="/kilepes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Kilépés a fiókból</a>
                     <?php else: ?>
                         <a href="/belepes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Belépés</a>
-                        <a href="/regisztracio" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Regisztráció</a>
+                        <a href="/regisztracio" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Új fiók létrehozása</a>
                     <?php endif; ?>
+                </nav>
 
+                <h2 class="text-[0.6875rem] font-semibold uppercase tracking-wider text-billiard-gold-300/80 mt-6 mb-3">
+                    Szervezői hozzáférés
+                </h2>
+                <p class="text-xs leading-relaxed text-white/40 mb-2 max-w-xs">
+                    Csak szervezőknek, a látogatói fióktól függetlenül.
+                </p>
+                <nav class="flex flex-col gap-1 -ml-3" aria-label="Szervezői navigáció">
                     <?php if (\App\Core\Session::isAdmin()): ?>
-                        <a href="/admin" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-billiard-gold-300/90 hover:text-white hover:bg-white/5 transition-colors w-fit">Admin felület</a>
+                        <a href="/admin" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-billiard-gold-300 hover:text-white hover:bg-white/5 transition-colors w-fit">Szervezői felület</a>
+                        <a href="/admin/logout" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Kilépés a szervezői módból</a>
                     <?php else: ?>
-                        <a href="/admin/login" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors w-fit">Szervezői belépés</a>
+                        <a href="/admin/login" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-white/45 hover:text-white hover:bg-white/5 transition-colors w-fit">Szervezői belépés</a>
                     <?php endif; ?>
                 </nav>
             </div>

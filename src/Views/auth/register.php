@@ -15,7 +15,7 @@ $minPassword = AuthService::MIN_PASSWORD_LENGTH;
     <header class="mb-7 text-center">
         <p class="eyebrow justify-center mb-3">
             <span class="w-6 h-px bg-billiard-gold-400" aria-hidden="true"></span>
-            Fiók
+            Látogatói fiók
         </p>
         <h1 class="text-3xl font-bold tracking-tightest text-billiard-green-900">Regisztráció</h1>
         <p class="text-sand-500 mt-2">

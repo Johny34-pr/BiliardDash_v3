@@ -523,6 +523,143 @@ textarea {
     animation: menuReveal 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ---- Fiókmenü (fejléc lenyíló) ---------------------------------------- */
+
+.account-trigger {
+    gap: 0.5rem;
+}
+
+/* A nyíl elfordul, amikor a panel nyitva van */
+.account-chevron {
+    transition: transform 0.2s ease;
+}
+
+.account-trigger[aria-expanded="true"] .account-chevron {
+    transform: rotate(180deg);
+}
+
+.account-trigger[aria-expanded="true"] {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Kis jelvény a menügombon, ha szervezői hozzáférés is aktív */
+.badge-admin {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    background-color: var(--gold-400);
+    color: var(--green-900);
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.account-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.5rem);
+    z-index: 60;
+    width: 20rem;
+    max-width: calc(100vw - 2rem);
+    background-color: #fff;
+    border: 1px solid var(--sand-200);
+    border-radius: 1rem;
+    box-shadow: 0 2px 4px rgba(6, 26, 19, .06), 0 20px 40px -12px rgba(6, 26, 19, .28);
+    overflow: hidden;
+    animation: menuReveal 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.account-section {
+    padding: 0.875rem 0.75rem 0.75rem;
+}
+
+/* A két szerep látható elválasztása */
+.account-section-admin {
+    border-top: 1px solid var(--sand-200);
+    background-color: var(--sand-50, #fbfaf8);
+}
+
+.account-section-title {
+    padding: 0 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sand-500);
+}
+
+/* Ki van bejelentkezve */
+.account-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.375rem 0.5rem 0.625rem;
+}
+
+/* Rövid magyarázat, mire szolgál az adott szerep */
+.account-hint {
+    padding: 0 0.5rem 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--sand-500);
+}
+
+.account-hint-active {
+    color: var(--green-600);
+    font-weight: 500;
+}
+
+.account-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem;
+    border-radius: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--sand-700);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.account-item:hover {
+    background-color: var(--sand-100);
+    color: var(--green-800);
+}
+
+.account-item svg {
+    flex-shrink: 0;
+}
+
+/* A szervezői felület a kiemelt művelet a saját szakaszában */
+.account-item-admin {
+    color: var(--green-700);
+    font-weight: 600;
+}
+
+.account-item-admin:hover {
+    background-color: #daf3e5;
+}
+
+/* ---- Szervezői mód jelzősáv ------------------------------------------- */
+
+/*
+ * Szándékosan arany hátterű, elütő sáv: a publikus oldal zöld fejléce alatt
+ * azonnal észrevehető, hogy szervezői hozzáférés aktív.
+ */
+.admin-mode-bar {
+    background: linear-gradient(90deg, var(--gold-300), var(--gold-400));
+    color: var(--green-900);
+}
+
+.admin-mode-bar a {
+    color: inherit;
+}
+
 @keyframes menuReveal {
     from { opacity: 0; transform: translateY(-6px); }
     to   { opacity: 1; transform: translateY(0); }

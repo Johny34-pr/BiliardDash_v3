@@ -22,7 +22,7 @@ $ownEmail = mb_strtolower($user['email']);
     <header class="mb-9">
         <p class="eyebrow mb-3">
             <span class="w-6 h-px bg-billiard-gold-400" aria-hidden="true"></span>
-            Fiókom
+            Látogatói fiók
         </p>
         <div class="flex flex-wrap items-end justify-between gap-4">
             <div>
@@ -33,9 +33,25 @@ $ownEmail = mb_strtolower($user['email']);
             </div>
             <div class="flex items-center gap-2">
                 <a href="/nevezes" class="btn btn-primary btn-sm">Új nevezés</a>
-                <a href="/kilepes" class="btn btn-ghost btn-sm">Kilépés</a>
+                <a href="/kilepes" class="btn btn-ghost btn-sm">Kilépés a fiókból</a>
             </div>
         </div>
+
+        <?php if (\App\Core\Session::isAdmin()): ?>
+            <!-- A két szerep elhatárolása azoknak, akik egyszerre mindkettőben vannak -->
+            <div class="alert alert-info mt-5">
+                <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+                </svg>
+                <div class="text-sm">
+                    <p class="alert-title mb-0.5">Szervezői hozzáférésed is aktív</p>
+                    <p>
+                        Ez az oldal a saját nevezéseidet mutatja. Az összes nevezés kezeléséhez
+                        a <a href="/admin/versenyek" class="font-medium underline">szervezői felület</a> kell.
+                    </p>
+                </div>
+            </div>
+        <?php endif; ?>
     </header>
 
     <!-- Nevezések -->

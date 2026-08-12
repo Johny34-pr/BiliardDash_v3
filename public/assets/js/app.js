@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // === Fiókmenü (fejléc lenyíló) ===
+    initAccountMenu();
+
     // === Fórum: emoji beszúrás és karakterszámláló ===
     initCommentForm();
 
@@ -211,4 +214,67 @@ function initCommentForm() {
 
     textarea.addEventListener('input', updateCounter);
     updateCounter();
+}
+
+/**
+ * Fiókmenü a fejlécben.
+ *
+ * Egyetlen lenyíló panel kezeli a látogatói fiókot és a szervezői
+ * hozzáférést, külön megnevezett szakaszokban. A menü kívülre kattintásra
+ * és Escape-re bezárul, a fókusz pedig visszakerül a nyitó gombra.
+ */
+function initAccountMenu() {
+    var toggle = document.getElementById('account-toggle');
+    var panel = document.getElementById('account-panel');
+
+    if (!toggle || !panel) {
+        return;
+    }
+
+    function isOpen() {
+        return !panel.classList.contains('hidden');
+    }
+
+    function open() {
+        panel.classList.remove('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function close(returnFocus) {
+        panel.classList.add('hidden');
+        toggle.setAttribute('aria-expanded', 'false');
+        if (returnFocus) {
+            toggle.focus();
+        }
+    }
+
+    toggle.addEventListener('click', function (event) {
+        event.stopPropagation();
+        if (isOpen()) {
+            close(false);
+        } else {
+            open();
+        }
+    });
+
+    // Kívülre kattintás bezárja
+    document.addEventListener('click', function (event) {
+        if (isOpen() && !panel.contains(event.target) && !toggle.contains(event.target)) {
+            close(false);
+        }
+    });
+
+    // Escape bezárja, és visszaadja a fókuszt a gombra
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && isOpen()) {
+            close(true);
+        }
+    });
+
+    // A panelből kifelé tabolva is záruljon be
+    panel.addEventListener('focusout', function (event) {
+        if (!panel.contains(event.relatedTarget) && event.relatedTarget !== toggle) {
+            close(false);
+        }
+    });
 }

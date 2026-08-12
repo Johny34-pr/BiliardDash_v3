@@ -27,33 +27,17 @@
                 </span>
             </a>
 
-            <!-- Főnavigáció (asztali) + fiók/admin sáv + hamburger -->
+            <!-- Főnavigáció (asztali) + egyesített fiókmenü + hamburger -->
             <div class="flex items-center gap-2">
                 <?php require __DIR__ . '/navigation.php'; ?>
 
-                <!-- Felhasználói fiók (publikus) -->
-                <div class="hidden md:flex items-center gap-1 ml-2 pl-3 border-l border-white/15">
-                    <?php if (\App\Core\Session::isUser()): ?>
-                        <?php $currentUser = \App\Core\Session::user(); ?>
-                        <a href="/fiok" class="nav-link <?= isActive('/fiok') ?>" title="Nevezéseim">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/>
-                            </svg>
-                            <?= e($currentUser['name']) ?>
-                        </a>
-                        <a href="/kilepes" class="nav-link">Kilépés</a>
-                    <?php else: ?>
-                        <a href="/belepes" class="nav-link <?= isActive('/belepes') ?>">Belépés</a>
-                        <a href="/regisztracio" class="btn btn-sm btn-gold ml-1">Regisztráció</a>
-                    <?php endif; ?>
-                </div>
-
-                <?php if (\App\Core\Session::isAdmin()): ?>
-                    <div class="hidden md:flex items-center gap-1 pl-3 border-l border-white/15">
-                        <a href="/admin" class="nav-link text-billiard-gold-300">Admin</a>
-                        <a href="/admin/logout" class="nav-link">Kijelentkezés</a>
-                    </div>
-                <?php endif; ?>
+                <!--
+                    Egyetlen fiókmenü a kétféle azonosításhoz. Korábban két
+                    párhuzamos sáv volt (látogatói és admin), két különböző
+                    szóval a kilépésre, ami nem tette világossá, melyik gomb
+                    melyik szerepre hat.
+                -->
+                <?php require __DIR__ . '/account-menu.php'; ?>
 
                 <button id="menu-toggle" type="button"
                         class="md:hidden grid place-items-center w-11 h-11 rounded-xl text-white/85 hover:text-white hover:bg-white/10 transition-colors"
@@ -78,24 +62,32 @@
                 </a>
             <?php endforeach; ?>
 
-            <!-- Fiók (mobil) -->
+            <!-- ==== Látogatói fiók (mobil) ==== -->
             <span class="mt-2 pt-3 px-4 border-t border-white/10 text-[0.6875rem] font-semibold uppercase tracking-wider text-white/40">
-                Fiók
+                Látogatói fiók
             </span>
             <?php if (\App\Core\Session::isUser()): ?>
+                <?php $mobileUser = \App\Core\Session::user(); ?>
+                <span class="px-4 pb-1 text-sm text-white/70">
+                    Belépve: <span class="font-semibold text-white"><?= e($mobileUser['name']) ?></span>
+                </span>
                 <a href="/fiok" class="nav-link nav-link-mobile <?= isActive('/fiok') ?>">Nevezéseim</a>
-                <a href="/kilepes" class="nav-link nav-link-mobile">Kilépés</a>
+                <a href="/kilepes" class="nav-link nav-link-mobile">Kilépés a fiókból</a>
             <?php else: ?>
                 <a href="/belepes" class="nav-link nav-link-mobile <?= isActive('/belepes') ?>">Belépés</a>
-                <a href="/regisztracio" class="nav-link nav-link-mobile <?= isActive('/regisztracio') ?>">Regisztráció</a>
+                <a href="/regisztracio" class="nav-link nav-link-mobile <?= isActive('/regisztracio') ?>">Új fiók létrehozása</a>
             <?php endif; ?>
 
+            <!-- ==== Szervezői hozzáférés (mobil) ==== -->
+            <span class="mt-2 pt-3 px-4 border-t border-white/10 text-[0.6875rem] font-semibold uppercase tracking-wider text-white/40">
+                Szervezői hozzáférés
+            </span>
             <?php if (\App\Core\Session::isAdmin()): ?>
-                <span class="mt-2 pt-3 px-4 border-t border-white/10 text-[0.6875rem] font-semibold uppercase tracking-wider text-white/40">
-                    Adminisztráció
-                </span>
-                <a href="/admin" class="nav-link nav-link-mobile">Admin felület</a>
-                <a href="/admin/logout" class="nav-link nav-link-mobile">Kijelentkezés</a>
+                <span class="px-4 pb-1 text-sm text-billiard-gold-300">Szervezői módban vagy</span>
+                <a href="/admin" class="nav-link nav-link-mobile">Szervezői felület</a>
+                <a href="/admin/logout" class="nav-link nav-link-mobile">Kilépés a szervezői módból</a>
+            <?php else: ?>
+                <a href="/admin/login" class="nav-link nav-link-mobile">Szervezői belépés</a>
             <?php endif; ?>
         </nav>
     </div>

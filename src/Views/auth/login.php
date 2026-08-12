@@ -11,7 +11,7 @@
     <header class="mb-7 text-center">
         <p class="eyebrow justify-center mb-3">
             <span class="w-6 h-px bg-billiard-gold-400" aria-hidden="true"></span>
-            Fiók
+            Látogatói fiók
         </p>
         <h1 class="text-3xl font-bold tracking-tightest text-billiard-green-900">Belépés</h1>
         <p class="text-sand-500 mt-2">
@@ -80,5 +80,14 @@
                 le tudod adni a nevezést. Fiókkal viszont visszavonhatod, és másnak is nevezhetsz.
             </p>
         </div>
+    </div>
+
+    <!-- Elhatárolás a szervezői hozzáféréstől, hogy ne keveredjen össze -->
+    <div class="mt-8 pt-6 border-t border-sand-200 text-center">
+        <p class="text-sm text-sand-500">
+            Szervező vagy? A tartalomkezeléshez
+            <a href="/admin/login" class="font-semibold text-billiard-green-600 hover:underline">szervezői belépés</a>
+            szükséges, külön jelszóval.
+        </p>
     </div>
 </div>

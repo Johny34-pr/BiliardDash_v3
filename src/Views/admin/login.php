@@ -32,12 +32,26 @@ $pageTitle = $pageTitle ?? 'Admin belépés - Magyar Biliárd';
                         <span class="text-xs font-bold leading-none text-billiard-gold-300">8</span>
                     </span>
                 </span>
-                <h1 class="text-xl font-semibold tracking-tightest">Magyar Biliárd</h1>
-                <p class="text-sm text-white/50 mt-1">Adminisztrációs felület</p>
+                <h1 class="text-xl font-semibold tracking-tightest">Szervezői belépés</h1>
+                <p class="text-sm text-white/50 mt-1">Magyar Biliárd &middot; tartalomkezelés</p>
             </div>
 
             <!-- Bejelentkező kártya -->
             <div class="bg-white rounded-2xl shadow-lift p-7 text-sand-900">
+
+                <!-- Elhatárolás a látogatói fióktól, hogy ne keveredjen össze -->
+                <div class="alert alert-info mb-5">
+                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+                    </svg>
+                    <div class="text-sm">
+                        <p class="alert-title mb-0.5">Ez nem a látogatói fiók</p>
+                        <p>
+                            Itt a szervezők léphetnek be a hírek, a galéria, a versenyek és a
+                            fórum kezeléséhez, közös jelszóval &mdash; e-mail cím nélkül.
+                        </p>
+                    </div>
+                </div>
 
                 <?php if (!empty($error)): ?>
                     <div class="alert alert-error mb-5" role="alert">
@@ -66,7 +80,13 @@ $pageTitle = $pageTitle ?? 'Admin belépés - Magyar Biliárd';
                 </form>
             </div>
 
-            <p class="text-center mt-6">
+            <p class="text-center mt-6 text-sm text-white/50">
+                Nevezni vagy hozzászólni szeretnél? Ahhoz a
+                <a href="/belepes" class="font-semibold text-billiard-gold-300 hover:underline">látogatói belépés</a>
+                kell.
+            </p>
+
+            <p class="text-center mt-5">
                 <a href="/" class="inline-flex items-center gap-1.5 text-sm text-white/50 hover:text-white transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
