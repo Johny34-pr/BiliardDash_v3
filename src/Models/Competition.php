@@ -123,4 +123,20 @@ class Competition
 
         return $stmt->execute([':id' => $id]);
     }
+
+    /**
+     * Verseny nevezőszámának csökkentése eggyel.
+     *
+     * A registrant_count UNSIGNED, ezért a `> 0` feltétel véd az alulcsordulástól.
+     */
+    public function decrementRegistrantCount(string $id): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE competitions
+             SET registrant_count = registrant_count - 1
+             WHERE id = :id AND registrant_count > 0'
+        );
+
+        return $stmt->execute([':id' => $id]);
+    }
 }

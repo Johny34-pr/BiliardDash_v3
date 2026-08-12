@@ -16,6 +16,7 @@ $navItems = [
     ['url' => '/',        'label' => 'Hírek'],
     ['url' => '/galeria', 'label' => 'Galéria'],
     ['url' => '/nevezes', 'label' => 'Nevezés'],
+    ['url' => '/forum',   'label' => 'Fórum'],
 ];
 ?>
 <ul id="nav-menu" class="hidden md:flex items-center gap-1" aria-label="Főnavigáció">

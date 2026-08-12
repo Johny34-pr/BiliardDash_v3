@@ -39,6 +39,14 @@ composer.phar
 /logs/
 
 # ==========================================================================
+# Adatbázis mentések
+# ==========================================================================
+# A database/migrations/ alatti .sql fájlok verziókövetettek, az ad hoc
+# mentések viszont éles adatot tartalmazhatnak, ezért kimaradnak.
+/*_backup_*.sql
+/*.dump.sql
+
+# ==========================================================================
 # Operációs rendszer által generált fájlok
 # ==========================================================================
 Thumbs.db

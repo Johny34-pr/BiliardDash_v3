@@ -23,6 +23,22 @@
 <script>
     tailwind.config = {
         theme: {
+            /*
+             * A tartalomsáv felső korlátja. Nélküle a container a
+             * 2xl töréspontnál 1536px-ig szétnyílik, amitől a fejléc két
+             * széle (márkajel és fiók gombok) túl messze kerül egymástól.
+             */
+            container: {
+                center: true,
+                padding: '1rem',
+                screens: {
+                    sm: '640px',
+                    md: '768px',
+                    lg: '1024px',
+                    xl: '1180px',
+                    '2xl': '1180px',
+                },
+            },
             extend: {
                 colors: {
                     /* Biliárdposztó zöld - hűvös, mély, telt tónusskála */

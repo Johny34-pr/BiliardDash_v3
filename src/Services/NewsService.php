@@ -76,13 +76,22 @@ class NewsService
     }
 
     /**
-     * Summary generálás: HTML tagek eltávolítása, trim, első 200 karakter.
+     * Summary generálás: HTML tagek eltávolítása, entitások feloldása,
+     * whitespace normalizálás, majd az első 200 karakter.
+     *
+     * Az entitások feloldása azért kell, mert a rich text szerkesztő
+     * névvel megadott entitásokat is előállíthat (pl. `&aacute;`). Ezek
+     * nyersen a nézetbe kerülve az e() escape után szó szerint látszanának
+     * (`&amp;aacute;`), ezért itt valódi karakterré alakítjuk őket.
      */
     private function generateSummary(string $content): string
     {
         $stripped = strip_tags($content);
-        $trimmed = trim($stripped);
+        $decoded = html_entity_decode($stripped, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-        return mb_substr($trimmed, 0, 200);
+        // Sortörések és többszörös szóközök egyetlen szóközre
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', $decoded));
+
+        return mb_substr($normalized, 0, 200);
     }
 }

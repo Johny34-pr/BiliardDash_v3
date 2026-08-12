@@ -103,12 +103,20 @@ class CompetitionService
      * 4. Nevezőszám növelése
      * 5. Visszaigazoló email küldés triggerelése
      *
+     * @param string|null $createdByUserId A rögzítő felhasználó azonosítója,
+     *                                     vagy null vendégnevezés esetén. A nevező
+     *                                     adatai ettől függetlenül a $data-ból jönnek,
+     *                                     így egy fiók másnak is nevezhet.
      * @return array{id:string, competition_id:string, full_name:string, email:string, phone:string, registered_at:string}
      * @throws AppException
      */
-    public function registerForCompetition(string $competitionId, array $data): array
+    public function registerForCompetition(string $competitionId, array $data, ?string $createdByUserId = null): array
     {
         $competition = $this->competitionModel->findById($competitionId);
+
+        if ($competition === null) {
+            throw AppException::notFound('A verseny nem található');
+        }
 
         // 1. Határidő ellenőrzés
         if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
@@ -127,7 +135,8 @@ class CompetitionService
             $competitionId,
             $data['fullName'],
             $data['email'],
-            $data['phone']
+            $data['phone'],
+            $createdByUserId
         );
 
         // 4. Nevezőszám növelése
@@ -150,11 +159,28 @@ class CompetitionService
     /**
      * Egy verseny összes nevezésének lekérdezése.
      *
+     * Teljes adatkörrel tér vissza (e-mail, telefon), ezért kizárólag
+     * admin felületen használható. Nyilvános listához a
+     * getPublicRegistrants() metódust kell hívni.
+     *
      * @return array<array{full_name:string, email:string, phone:string, registered_at:string}>
      */
     public function getRegistrations(string $competitionId): array
     {
         return $this->registrationModel->findByCompetitionId($competitionId);
+    }
+
+    /**
+     * Nyilvános nevezői lista: csak a nevek és a nevezés ideje.
+     *
+     * Az e-mail címet és a telefonszámot szándékosan nem adja vissza, mert
+     * azok személyes adatok, és a nevezői lista belépés nélkül is látható.
+     *
+     * @return array<array{full_name:string, registered_at:string}>
+     */
+    public function getPublicRegistrants(string $competitionId): array
+    {
+        return $this->registrationModel->findPublicByCompetitionId($competitionId);
     }
 
     /**
@@ -187,6 +213,90 @@ class CompetitionService
     public function checkDuplicateRegistration(string $competitionId, string $email): bool
     {
         return $this->registrationModel->findByCompetitionAndEmail($competitionId, $email) !== null;
+    }
+
+    /**
+     * Egy felhasználó által rögzített nevezések, a verseny adataival együtt.
+     *
+     * Tartalmazza a saját nevezését és azokat is, amelyeket másnak vitt fel.
+     *
+     * @return array<array{id:string, competition_id:string, full_name:string, email:string, phone:string, registered_at:string, competition_name:string, competition_date:string, competition_venue:string, registration_deadline:string}>
+     */
+    public function getRegistrationsByUser(string $userId): array
+    {
+        return $this->registrationModel->findByUserId($userId);
+    }
+
+    /**
+     * Nevezés törlése szervezői jogkörben.
+     *
+     * A felhasználói visszavonással szemben itt nincs jogosultsági és
+     * határidő-ellenőrzés: a szervező bármelyik nevezést eltávolíthatja,
+     * a határidő lejárta után is. Erre azért van szükség, mert lemondás
+     * vagy hibás nevezés esetén a névsort utólag is rendezni kell.
+     *
+     * A nevezőszámot is csökkenti, hogy konzisztens maradjon.
+     *
+     * @return string A verseny azonosítója, ahová a nevezés tartozott
+     * @throws AppException Ha a nevezés nem található.
+     */
+    public function deleteRegistrationAsAdmin(string $registrationId): string
+    {
+        $registration = $this->registrationModel->findById($registrationId);
+
+        if ($registration === null) {
+            throw AppException::notFound('A nevezés nem található');
+        }
+
+        $competitionId = $registration['competition_id'];
+
+        $this->registrationModel->delete($registrationId);
+        $this->competitionModel->decrementRegistrantCount($competitionId);
+
+        return $competitionId;
+    }
+
+    /**
+     * Felhasználó által rögzített nevezés törlése.
+     *
+     * Két feltételnek kell teljesülnie:
+     *   1. A nevezést ez a felhasználó vitte fel (vendégnevezés nem törölhető így)
+     *   2. A nevezési határidő még nem járt le - utána a szervező véglegesnek
+     *      tekinti a névsort, ezért a törlés csak adminnál marad
+     *
+     * A nevezőszámot is csökkenti, hogy konzisztens maradjon.
+     *
+     * @throws AppException Ha a nevezés nem létezik, nem a felhasználóé,
+     *                      vagy a határidő már lejárt.
+     */
+    public function deleteOwnRegistration(string $registrationId, string $userId): void
+    {
+        $registration = $this->registrationModel->findById($registrationId);
+
+        if ($registration === null) {
+            throw AppException::notFound('A nevezés nem található');
+        }
+
+        // 1. Jogosultság: csak a rögzítő törölheti
+        if ($registration['created_by_user_id'] !== $userId) {
+            throw AppException::forbidden('Ez a nevezés nem a te fiókodhoz tartozik');
+        }
+
+        $competition = $this->competitionModel->findById($registration['competition_id']);
+
+        if ($competition === null) {
+            throw AppException::notFound('A verseny nem található');
+        }
+
+        // 2. Határidő: lejárt határidő után nem törölhető
+        if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
+            throw AppException::deadlinePassed(
+                'A nevezési határidő lejárt, a nevezés már nem vonható vissza'
+            );
+        }
+
+        $this->registrationModel->delete($registrationId);
+        $this->competitionModel->decrementRegistrantCount($registration['competition_id']);
     }
 
     /**

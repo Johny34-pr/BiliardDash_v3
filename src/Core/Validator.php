@@ -67,6 +67,19 @@ class Validator
         return $this;
     }
 
+    /**
+     * Egyedi hiba hozzáadása.
+     *
+     * Olyan szabályokhoz, amelyek nem fejezhetők ki a fenti validátorokkal,
+     * például két mező egyezésének ellenőrzéséhez. A többi validátorhoz
+     * hasonlóan mezőnként egy hibát tart nyilván, a legutóbb beállítottat.
+     */
+    public function addError(string $field, string $message): self
+    {
+        $this->errors[$field] = $message;
+        return $this;
+    }
+
     public function isValid(): bool
     {
         return empty($this->errors);

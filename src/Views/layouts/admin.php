@@ -16,6 +16,7 @@ $adminNav = [
     ['url' => '/admin/hirek',      'label' => 'Hírek',      'exact' => false],
     ['url' => '/admin/galeria',    'label' => 'Galéria',    'exact' => false],
     ['url' => '/admin/versenyek',  'label' => 'Versenyek',  'exact' => false],
+    ['url' => '/admin/forum',      'label' => 'Fórum',      'exact' => false],
 ];
 ?>
 <!DOCTYPE html>

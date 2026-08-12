@@ -51,6 +51,106 @@ class ValidationService
         return $v;
     }
 
+    /**
+     * Felhasználói fiók regisztráció validálása.
+     *
+     * A jelszó minimális hosszát az AuthService::MIN_PASSWORD_LENGTH adja meg,
+     * és a megerősítő mezővel is egyeznie kell.
+     */
+    public function validateUserRegistration(array $data): Validator
+    {
+        $v = new Validator();
+        $minLength = AuthService::MIN_PASSWORD_LENGTH;
+
+        $v->required('name', $data['name'] ?? null, 'A név megadása kötelező')
+          ->maxLength('name', $data['name'] ?? null, 100, 'A név maximum 100 karakter lehet')
+          ->required('email', $data['email'] ?? null, 'Az e-mail cím megadása kötelező')
+          ->email('email', $data['email'] ?? null, 'Érvénytelen e-mail formátum')
+          ->maxLength('email', $data['email'] ?? null, 255, 'Az e-mail cím maximum 255 karakter lehet')
+          ->required('phone', $data['phone'] ?? null, 'A telefonszám megadása kötelező')
+          ->maxLength('phone', $data['phone'] ?? null, 50, 'A telefonszám maximum 50 karakter lehet')
+          ->required('password', $data['password'] ?? null, 'A jelszó megadása kötelező')
+          ->minLength('password', $data['password'] ?? null, $minLength, "A jelszó legalább {$minLength} karakter legyen");
+
+        // Jelszó megerősítés egyezése - csak ha van megadott jelszó
+        if (!empty($data['password']) && ($data['passwordConfirm'] ?? '') !== $data['password']) {
+            $v->addError('passwordConfirm', 'A két jelszó nem egyezik');
+        }
+
+        return $v;
+    }
+
+    /**
+     * Fórum topik validálása.
+     *
+     * A név csak vendégként kötelező; bejelentkezve a fiók nevét használjuk.
+     *
+     * @param bool $isGuest Vendégként nyitja-e a topikot
+     */
+    public function validateTopic(array $data, bool $isGuest): Validator
+    {
+        $v = new Validator();
+
+        if ($isGuest) {
+            $v->required('authorName', $data['authorName'] ?? null, 'A név megadása kötelező')
+              ->maxLength('authorName', $data['authorName'] ?? null, CommentService::MAX_NAME_LENGTH,
+                  'A név maximum ' . CommentService::MAX_NAME_LENGTH . ' karakter lehet');
+        }
+
+        $v->required('title', $data['title'] ?? null, 'A cím megadása kötelező')
+          ->minLength('title', $data['title'] ?? null, TopicService::MIN_TITLE_LENGTH,
+              'A cím legalább ' . TopicService::MIN_TITLE_LENGTH . ' karakter legyen')
+          ->maxLength('title', $data['title'] ?? null, TopicService::MAX_TITLE_LENGTH,
+              'A cím maximum ' . TopicService::MAX_TITLE_LENGTH . ' karakter lehet')
+          ->required('body', $data['body'] ?? null, 'A nyitó bejegyzés nem lehet üres')
+          ->minLength('body', $data['body'] ?? null, TopicService::MIN_BODY_LENGTH,
+              'A nyitó bejegyzés túl rövid')
+          ->maxLength('body', $data['body'] ?? null, TopicService::MAX_BODY_LENGTH,
+              'A nyitó bejegyzés maximum ' . TopicService::MAX_BODY_LENGTH . ' karakter lehet');
+
+        return $v;
+    }
+
+    /**
+     * Fórum hozzászólás validálása.
+     *
+     * A név csak vendégként kötelező; bejelentkezve a fiók nevét használjuk.
+     * A hosszkorlátokat a CommentService konstansai adják meg.
+     *
+     * @param bool $isGuest Vendégként küldi-e be a hozzászólást
+     */
+    public function validateComment(array $data, bool $isGuest): Validator
+    {
+        $v = new Validator();
+
+        if ($isGuest) {
+            $v->required('authorName', $data['authorName'] ?? null, 'A név megadása kötelező')
+              ->maxLength('authorName', $data['authorName'] ?? null, CommentService::MAX_NAME_LENGTH,
+                  'A név maximum ' . CommentService::MAX_NAME_LENGTH . ' karakter lehet');
+        }
+
+        $v->required('body', $data['body'] ?? null, 'A hozzászólás nem lehet üres')
+          ->minLength('body', $data['body'] ?? null, CommentService::MIN_LENGTH,
+              'A hozzászólás túl rövid')
+          ->maxLength('body', $data['body'] ?? null, CommentService::MAX_LENGTH,
+              'A hozzászólás maximum ' . CommentService::MAX_LENGTH . ' karakter lehet');
+
+        return $v;
+    }
+
+    /**
+     * Bejelentkezési adatok validálása.
+     *
+     * Csak a mezők jelenlétét ellenőrzi; a hitelesítés az AuthService dolga.
+     */
+    public function validateUserLogin(array $data): Validator
+    {
+        $v = new Validator();
+        $v->required('email', $data['email'] ?? null, 'Az e-mail cím megadása kötelező')
+          ->required('password', $data['password'] ?? null, 'A jelszó megadása kötelező');
+        return $v;
+    }
+
     public function validateImageUpload(array $file): Validator
     {
         $v = new Validator();

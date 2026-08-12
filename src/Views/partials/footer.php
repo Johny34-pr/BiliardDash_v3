@@ -37,20 +37,28 @@
                     <a href="/" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Hírek</a>
                     <a href="/galeria" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Galéria</a>
                     <a href="/nevezes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Nevezés</a>
+                    <a href="/forum" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Fórum</a>
                 </nav>
             </div>
 
-            <!-- Adminisztráció -->
+            <!-- Fiók és adminisztráció -->
             <div>
                 <h2 class="text-[0.6875rem] font-semibold uppercase tracking-wider text-billiard-gold-300/80 mb-3">
-                    Szervezőknek
+                    Fiók
                 </h2>
-                <nav class="flex flex-col gap-1 -ml-3" aria-label="Admin navigáció">
-                    <?php if (\App\Core\Session::isAdmin()): ?>
-                        <a href="/admin" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Admin felület</a>
-                        <a href="/admin/logout" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Kijelentkezés</a>
+                <nav class="flex flex-col gap-1 -ml-3" aria-label="Fiók navigáció">
+                    <?php if (\App\Core\Session::isUser()): ?>
+                        <a href="/fiok" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Nevezéseim</a>
+                        <a href="/kilepes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Kilépés</a>
                     <?php else: ?>
-                        <a href="/admin/login" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Bejelentkezés</a>
+                        <a href="/belepes" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Belépés</a>
+                        <a href="/regisztracio" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">Regisztráció</a>
+                    <?php endif; ?>
+
+                    <?php if (\App\Core\Session::isAdmin()): ?>
+                        <a href="/admin" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-billiard-gold-300/90 hover:text-white hover:bg-white/5 transition-colors w-fit">Admin felület</a>
+                    <?php else: ?>
+                        <a href="/admin/login" class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm text-white/40 hover:text-white hover:bg-white/5 transition-colors w-fit">Szervezői belépés</a>
                     <?php endif; ?>
                 </nav>
             </div>

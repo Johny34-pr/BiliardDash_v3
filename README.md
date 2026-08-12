@@ -14,6 +14,22 @@ Közösségi weboldal a magyar biliárd közösség számára: hírek, fotógal�
 - Visszaigazoló e-mail sikeres nevezés után
 - Reszponzív elrendezés három töréspontra (mobil / tablet / asztali)
 
+- Nyilvános nevezői lista versenyenként, belépés nélkül is
+
+**Felhasználói fiókok**
+
+- Regisztráció és belépés e-mail címmel
+- Nevezés magának előtöltött űrlappal, vagy más nevében
+- Saját nevezések áttekintése és visszavonása a nevezési határidőig
+- A vendégnevezés (belépés nélküli) továbbra is működik
+
+**Fórum**
+
+- Topikok nyitása és hozzászólás vendégként és belépve is
+- Csak egyszerű szöveg, korlátozott emojikészlettel
+- Hozzászólások fel- és leértékelése
+- Moderálás az admin felületen: lezárás, elrejtés (mindkettő visszavonható) és végleges törlés
+
 **Admin felület**
 
 - Session-alapú bejelentkezés
@@ -59,7 +75,21 @@ composer install
 ```bash
 mysql -u root -e "CREATE DATABASE billiard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/001_create_tables.sql
+mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/002_add_users_and_registration_owner.sql
+mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/003_create_comments.sql
+mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/004_add_comment_votes.sql
+mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/005_add_forum_topics.sql
 ```
+
+A migrációkat sorszám szerinti sorrendben kell futtatni:
+
+| Migráció | Tartalom |
+| --- | --- |
+| `001` | Alap táblák: hírek, albumok, képek, versenyek, nevezések |
+| `002` | Felhasználói fiókok és a nevezés rögzítője |
+| `003` | Fórum hozzászólások |
+| `004` | Hozzászólások értékelése (fel/leértékelés) |
+| `005` | Fórum topikok; a meglévő hozzászólásokat egy alap topikba menti |
 
 XAMPP alatt Windows-on a MySQL kliens a `C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a migrációt a phpMyAdmin felületén is be lehet importálni.
 
@@ -167,7 +197,23 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET | `/galeria/{albumId}` | `GalleryController@show` |
 | GET | `/nevezes` | `CompetitionController@index` |
 | GET | `/nevezes/{versenyId}` | `CompetitionController@showForm` |
+| GET | `/nevezes/{versenyId}/nevezok` | `CompetitionController@registrants` |
 | POST | `/nevezes/{versenyId}` | `CompetitionController@submitRegistration` |
+| GET | `/forum` | `ForumController@index` (topiklista) |
+| GET, POST | `/forum/uj` | `ForumController@createForm`, `@store` |
+| GET | `/forum/{id}` | `ForumController@show` |
+| POST | `/forum/{id}/hozzaszolas` | `ForumController@storeComment` |
+| POST | `/forum/hozzaszolas/{id}/ertekeles` | `ForumController@vote` |
+
+**Felhasználói fiók** (a `/fiok` belépést igényel, egyébként a `/belepes` oldalra irányít)
+
+| Metódus | Útvonal | Kezelő |
+| --- | --- | --- |
+| GET, POST | `/regisztracio` | `AuthController@registerForm`, `@register` |
+| GET, POST | `/belepes` | `AuthController@loginForm`, `@login` |
+| GET | `/kilepes` | `AuthController@logout` |
+| GET | `/fiok` | `AuthController@account` |
+| POST | `/fiok/nevezes/{id}/visszavonas` | `AuthController@deleteRegistration` |
 
 **Admin** (bejelentkezés szükséges, egyébként átirányít a `/admin/login` oldalra)
 
@@ -190,6 +236,14 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | POST | `/admin/versenyek/{id}/torol` | `AdminController@competitionDelete` |
 | GET | `/admin/versenyek/{id}/nevezesek` | `AdminController@registrationList` |
 | GET | `/admin/versenyek/{id}/export` | `AdminController@exportCsv` |
+| POST | `/admin/versenyek/nevezes/{id}/torol` | `AdminController@registrationDelete` |
+| GET | `/admin/forum` | `AdminController@topicList` |
+| POST | `/admin/forum/{id}/lezar` | `AdminController@topicToggleLocked` |
+| POST | `/admin/forum/{id}/elrejt` | `AdminController@topicToggleHidden` |
+| POST | `/admin/forum/{id}/torol` | `AdminController@topicDelete` |
+| GET | `/admin/forum/hozzaszolasok` | `AdminController@commentList` |
+| POST | `/admin/forum/hozzaszolas/{id}/elrejt` | `AdminController@commentToggleHidden` |
+| POST | `/admin/forum/hozzaszolas/{id}/torol` | `AdminController@commentDelete` |
 
 Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 
@@ -204,14 +258,20 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 │   ├── assets/{css,js,images}/ → Statikus erőforrások
 │   └── uploads/albums/{id}/    → full/ (eredeti) és thumb/ (200x200px)
 ├── src/
-│   ├── Controllers/            → Home, News, Gallery, Competition, Admin
-│   ├── Models/                 → News, Album, Image, Competition, Registration
-│   ├── Services/               → News, Gallery, Competition, Image, Email, Validation
+│   ├── Controllers/            → Home, News, Gallery, Competition, Auth,
+│   │                             Forum, Admin
+│   ├── Models/                 → News, Album, Image, Competition, Registration,
+│   │                             User, Topic, Comment, CommentVote
+│   ├── Services/               → News, Gallery, Competition, Image, Email,
+│   │                             Validation, Auth, Topic, Comment
 │   ├── Views/
 │   │   ├── layouts/            → main.php (publikus), admin.php
 │   │   ├── partials/           → head.php (design tokenek), header.php,
 │   │   │                         navigation.php, footer.php, tinymce.php
 │   │   ├── home|news|gallery|competitions/  → publikus nézetek
+│   │   ├── forum/              → index.php (topiklista), create.php, show.php
+│   │   ├── auth/               → login.php, register.php
+│   │   ├── account/            → index.php (saját nevezések)
 │   │   ├── admin/              → admin nézetek (news, gallery, competitions)
 │   │   └── errors/             → 404.php, 500.php
 │   └── Core/                   → Database, Router, Session, Validator, AppException, helpers
@@ -219,6 +279,78 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 ├── database/migrations/         → 001_create_tables.sql
 └── tests/{Unit,Properties,Integration}/
 ```
+
+## Nevezés és felhasználói fiókok
+
+Kétféle azonosítási szint létezik, egymástól függetlenül: a **publikus felhasználói fiók** (nevezésekhez) és a **szervezői/admin belépés** (tartalomkezeléshez). A `Session` osztály mindkettőt kezeli, és külön-külön léptethetők ki.
+
+**Nevezés három módon.** A nevező adatai (`full_name`, `email`, `phone`) mindig magán a nevezésen vannak, ezért egy fiók több személynek is rögzíthet nevezést:
+
+| Mód | Belépés | `created_by_user_id` | Visszavonható |
+| --- | --- | --- | --- |
+| Vendégnevezés | nem kell | `NULL` | nem (csak admin) |
+| Magamnak | igen | a fiók azonosítója | igen, a határidőig |
+| Másnak | igen | a *rögzítő* fiók azonosítója | igen, a határidőig |
+
+A „magamnak" mód a fiók adataival tölti elő az űrlapot, a „másnak" üresen hagyja. A választás csak kényelmi előtöltés: a nevezés tulajdonosát mindig a `created_by_user_id` határozza meg.
+
+**Kinek az e-mail-címe kerül a nevezésre.** Mindig a *nevezőé*, azaz aki játszani fog. Két okból: így a `UNIQUE (competition_id, email)` megkötés továbbra is helyesen szűri a kétszeres nevezést, és a visszaigazoló e-mail is ahhoz jut el, akit érint.
+
+**Visszavonás szabályai.** Kétféle törlés létezik, szándékosan különböző szabályokkal:
+
+| | `deleteOwnRegistration()` (felhasználó) | `deleteRegistrationAsAdmin()` (szervező) |
+| --- | --- | --- |
+| Kinek a nevezését | csak amit ő vitt fel | bármelyiket |
+| Határidő után | nem (`410`) | igen |
+| Vendégnevezés | nem (`403`) | igen |
+
+A felhasználói visszavonás két feltételt ellenőriz: a nevezést ő vitte-e fel, és lejárt-e már a határidő. A szervezői törlésnél egyik sem korlátoz, mert lemondást vagy hibás nevezést a határidő után is rendezni kell.
+
+Mindkét út csökkenti a `registrant_count`-ot, hogy konzisztens maradjon a valós nevezésszámmal. A törlés után ugyanaz az e-mail cím újra nevezhet, mert a `UNIQUE (competition_id, email)` megkötést a törölt sor már nem foglalja.
+
+**Fiók törlésekor** a nevezés nem törlődik: a `created_by_user_id` idegen kulcs `ON DELETE SET NULL`, tehát a nevezés vendégnevezéssé válik, és a szervező névsora nem csorbul.
+
+**Jelszavak.** `password_hash()` (bcrypt) tárolás, a hash soha nem kerül sessionbe vagy naplóba. A bejelentkezés nem árulja el, hogy az e-mail cím vagy a jelszó volt hibás, így nem lehet vele létező fiókokat felderíteni. Nincs e-mail-cím megerősítés.
+
+**Publikus útvonalak:** `/regisztracio`, `/belepes`, `/kilepes`, `/fiok`, valamint `POST /fiok/nevezes/{id}/visszavonas`.
+
+Az admin nevezői listája jelvénnyel mutatja, hogy egy nevezés vendégként vagy fiókkal érkezett.
+
+**Nyilvános nevezői lista.** A `/nevezes/{id}/nevezok` útvonal belépés nélkül is elérhető, és szándékosan **csak a nevezők nevét és a nevezés idejét** adja vissza. Az e-mail cím és a telefonszám személyes adat, ezért az kizárólag a szervező admin felületén látható. A két adatkört két külön szolgáltatásmetódus választja el: a nyilvános `getPublicRegistrants()` és az admin `getRegistrations()`.
+
+## Fórum
+
+A fórum **topikokból** (témákból) áll: egy topik címből és nyitó bejegyzésből, a hozzászólások pedig egy topikhoz tartoznak. Topikot nyitni és hozzászólni vendégként és belépve is lehet. Belépve a szerzőnév a fiókból származik, ezért a beküldött érték nem érvényesül — így nem lehet más nevében írni.
+
+**Rendezés.** A topiklista a legutóbbi aktivitás szerint rendez (`last_activity_at`), így a mozgásban lévő beszélgetések kerülnek előre. Egy topikon belül viszont a hozzászólások időrendben, a legkorábbival kezdve jelennek meg, hogy a beszélgetés felülről lefelé követhető legyen.
+
+**Tartalmi szabály: csak egyszerű szöveg.** A `CommentService::sanitizeBody()` minden HTML jelölést eltávolít, feloldja az entitásokat, majd **újra** eltávolítja a jelölést (így az entitásként bújtatott tag sem éled újra), kiszűri a vezérlőkaraktereket, normalizálja a whitespace-t, és érvényesíti az 1000 karakteres korlátot. A kimenet `e()`-vel escape-elve jelenik meg, a sortöréseket CSS `white-space: pre-wrap` tartja meg — így nincs `nl2br`, és nem nyílik HTML injektálási lehetőség.
+
+**Emojik.** Csak a `CommentService::ALLOWED_EMOJIS` listán szereplő emojik használhatók, minden más piktogram kiszűrődik. A szűrés a megengedett emojikat előbb helyőrzőre cseréli, így a több kódpontból álló emojik (például a variációs jelölőt használó ❤️) sem sérülnek. A felületen ugyanez a lista jelenik meg választhatóként.
+
+**Értékelés.** Minden hozzászólás fel- és leértékelhető. Ugyanarra a gombra újra kattintva a szavazat visszavonható, az ellenkezőre kattintva átfordul — egy szavazónak hozzászólásonként mindig legfeljebb egy szavazata van, amit a `UNIQUE (comment_id, voter_key)` megkötés garantál.
+
+A szavazót a `Session::voterKey()` azonosítja: belépve `user:{id}` (eszközfüggetlen), vendégként `guest:{sessionben tárolt token}`. A vendég azonosítás megakadályozza az ismételt szavazást ugyanabból a böngészőmenetből, de a session törlése után újra lehet szavazni. Ez szándékos kompromisszum, hogy ne kelljen azonosításra alkalmas adatot tárolni.
+
+A `comments.upvotes` / `downvotes` csak gyorsított összesítés: minden szavazás után a `comment_votes` táblából **újraszámoljuk**, nem növeljük vagy csökkentjük, így a számlálók nem tudnak elcsúszni a valós szavazatoktól.
+
+**Moderálás.** Három eszköz áll rendelkezésre, növekvő súlyú sorrendben:
+
+| Eszköz | Hatás | Visszavonható |
+| --- | --- | --- |
+| Lezárás (`topics.is_locked`) | A topik olvasható marad, de nem fogad új hozzászólást | igen |
+| Elrejtés (`is_hidden`) | Eltűnik a publikus listáról, de megmarad az adatbázisban | igen |
+| Törlés | Véglegesen eltávolítja; topik esetén a hozzászólásait is | nem |
+
+Elrejtett hozzászólásra nem lehet szavazni, és elrejtett topik publikusan `404`-et ad. A topik törlésekor a hozzászólásai, azokkal együtt a szavazatok is kaszkádban törlődnek.
+
+A `topics.comment_count` szintén gyorsított összesítés, amit a hozzászólásokból számolunk újra — az elrejtett hozzászólások nem számítanak bele, így a moderálás után is helyes marad.
+
+**Visszaélés-védelem.** Két hozzászólás között 15, két topiknyitás között 60 másodpercet kell várni (sessionben tárolt időbélyeg alapján), és az IP cím csak SHA-256 hash formában tárolódik.
+
+**Útvonalak.** Publikus: `GET /forum` (topiklista), `GET|POST /forum/uj` (topik nyitása), `GET /forum/{id}` (topik), `POST /forum/{id}/hozzaszolas`, `POST /forum/hozzaszolas/{id}/ertekeles`. Admin: `/admin/forum` (topikok) és `/admin/forum/hozzaszolasok` (hozzászólások) a hozzájuk tartozó műveletekkel.
+
+> A `/forum/uj` útvonal szándékosan a `/forum/{id}` minta **előtt** van regisztrálva, különben a router az „uj" szót topik azonosítóként értelmezné. Ugyanez az oka, hogy a szavazás útvonala `/forum/hozzaszolas/{id}/ertekeles`.
 
 ## Megjelenés és design rendszer
 

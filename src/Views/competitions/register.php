@@ -2,21 +2,26 @@
 /**
  * Nevezési űrlap nézet
  *
- * Kétoszlopos elrendezés asztali nézetben (űrlap + verseny összefoglaló),
- * egyoszlopos mobilon (Requirement 7.4).
+ * Három használati mód:
+ *   1. Vendégként (nincs belépés): üres űrlap, a nevezés kötetlen marad
+ *   2. Belépve, "magamnak": a fiók adataival előtöltött űrlap
+ *   3. Belépve, "másnak": üres űrlap, a nevezés a fiókhoz kötve marad
  *
- * Állapotok: sikeres nevezés, lejárt határidő, dupla nevezés,
- * mezőnkénti validációs hibák.
+ * A belépéssel rögzített nevezés a fiókban visszavonható a határidő lejártáig.
  *
- * @var array $competition     Verseny adatai
- * @var array $errors          Validációs hibák (mező => üzenet)
- * @var array $data            Korábban megadott adatok (sticky form)
- * @var bool  $deadlinePassed  Lejárt-e a határidő
- * @var bool  $duplicateError  Dupla nevezés történt-e
- * @var bool  $success         Sikeres nevezés
+ * @var array      $competition    Verseny adatai
+ * @var array      $errors         Validációs hibák (mező => üzenet)
+ * @var array      $data           Korábban megadott adatok (sticky form)
+ * @var bool       $deadlinePassed Lejárt-e a határidő
+ * @var bool       $duplicateError Dupla nevezés történt-e
+ * @var bool       $success        Sikeres nevezés
+ * @var string     $registerFor    'self' vagy 'other'
+ * @var array|null $currentUser    A bejelentkezett felhasználó, vagy null
  */
 
 $isDisabled = !empty($deadlinePassed);
+$isLoggedIn = $currentUser !== null;
+$forSelf = $registerFor === 'self';
 $date = new DateTimeImmutable($competition['date']);
 $deadline = new DateTimeImmutable($competition['registration_deadline']);
 
@@ -56,7 +61,12 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                     </svg>
                     <div>
                         <p class="alert-title">Sikeres nevezés</p>
-                        <p class="text-sm mt-0.5">Visszaigazoló e-mailt küldtünk a megadott címre.</p>
+                        <p class="text-sm mt-0.5">
+                            Visszaigazoló e-mailt küldtünk a megadott címre.
+                            <?php if ($isLoggedIn): ?>
+                                A nevezés a <a href="/fiok" class="font-medium underline">fiókodban</a> is megjelenik.
+                            <?php endif; ?>
+                        </p>
                     </div>
                 </div>
             <?php endif; ?>
@@ -95,8 +105,35 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
             <?php endif; ?>
 
             <div class="card p-6 md:p-8">
+
+                <?php if ($isLoggedIn && !$isDisabled): ?>
+                    <!-- Mód választó: magamnak / másnak -->
+                    <div class="mb-6">
+                        <p class="label mb-2">Kinek nevezel?</p>
+                        <div class="inline-flex p-1 rounded-xl bg-sand-100 border border-sand-200" role="group" aria-label="Nevezés célja">
+                            <a href="/nevezes/<?= e($competition['id']) ?>?kinek=magamnak"
+                               class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                      <?= $forSelf ? 'bg-white text-billiard-green-800 shadow-sm' : 'text-sand-600 hover:text-billiard-green-700' ?>"
+                               <?= $forSelf ? 'aria-current="true"' : '' ?>>
+                                Magamnak
+                            </a>
+                            <a href="/nevezes/<?= e($competition['id']) ?>?kinek=masnak"
+                               class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors
+                                      <?= !$forSelf ? 'bg-white text-billiard-green-800 shadow-sm' : 'text-sand-600 hover:text-billiard-green-700' ?>"
+                               <?= !$forSelf ? 'aria-current="true"' : '' ?>>
+                                Másnak
+                            </a>
+                        </div>
+                        <p class="field-hint">
+                            <?= $forSelf
+                                ? 'Az űrlapot a fiókod adataival töltöttük elő.'
+                                : 'Add meg annak az adatait, aki játszani fog. A visszaigazolást ő kapja meg.' ?>
+                        </p>
+                    </div>
+                <?php endif; ?>
+
                 <h2 class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-1">
-                    Nevezési adatok
+                    <?= $isLoggedIn && !$forSelf ? 'A nevező adatai' : 'Nevezési adatok' ?>
                 </h2>
                 <p class="text-sm text-sand-500 mb-6">
                     A <span class="text-billiard-gold-600 font-semibold">*</span>-gal jelölt mezők kitöltése kötelező.
@@ -106,6 +143,8 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                       class="space-y-5" novalidate data-validate
                       <?= $isDisabled ? 'aria-disabled="true"' : '' ?>>
 
+                    <input type="hidden" name="register_for" value="<?= $forSelf ? 'self' : 'other' ?>">
+
                     <!-- Teljes név -->
                     <div>
                         <label for="full_name" class="label">
@@ -113,7 +152,7 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                         </label>
                         <input type="text" id="full_name" name="full_name"
                                value="<?= e($data['fullName'] ?? '') ?>"
-                               required maxlength="100" autocomplete="name"
+                               required maxlength="100" autocomplete="<?= $forSelf ? 'name' : 'off' ?>"
                                placeholder="pl. Kovács Péter"
                                class="<?= $fieldClass(!empty($errors['fullName'])) ?>"
                                <?= !empty($errors['fullName']) ? 'aria-describedby="full_name-error" aria-invalid="true"' : '' ?>
@@ -130,7 +169,7 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                         </label>
                         <input type="email" id="email" name="email"
                                value="<?= e($data['email'] ?? '') ?>"
-                               required autocomplete="email"
+                               required autocomplete="<?= $forSelf ? 'email' : 'off' ?>"
                                placeholder="pl. nev@example.hu"
                                class="<?= $fieldClass(!empty($errors['email'])) ?>"
                                <?= !empty($errors['email']) ? 'aria-describedby="email-error" aria-invalid="true"' : 'aria-describedby="email-hint"' ?>
@@ -138,7 +177,11 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                         <?php if (!empty($errors['email'])): ?>
                             <p id="email-error" class="field-message" role="alert"><?= e($errors['email']) ?></p>
                         <?php else: ?>
-                            <p id="email-hint" class="field-hint">Erre a címre küldjük a visszaigazolást.</p>
+                            <p id="email-hint" class="field-hint">
+                                <?= $isLoggedIn && !$forSelf
+                                    ? 'A visszaigazolást erre a címre küldjük.'
+                                    : 'Erre a címre küldjük a visszaigazolást.' ?>
+                            </p>
                         <?php endif; ?>
                     </div>
 
@@ -149,7 +192,7 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                         </label>
                         <input type="tel" id="phone" name="phone"
                                value="<?= e($data['phone'] ?? '') ?>"
-                               required autocomplete="tel"
+                               required autocomplete="<?= $forSelf ? 'tel' : 'off' ?>"
                                placeholder="pl. +36 30 123 4567"
                                class="<?= $fieldClass(!empty($errors['phone'])) ?>"
                                <?= !empty($errors['phone']) ? 'aria-describedby="phone-error" aria-invalid="true"' : '' ?>
@@ -167,6 +210,23 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                     </div>
                 </form>
             </div>
+
+            <?php if (!$isLoggedIn && !$isDisabled): ?>
+                <!-- Vendégként is működik, de fiókkal több lehetőség van -->
+                <div class="alert alert-info mt-6">
+                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+                    </svg>
+                    <div class="text-sm">
+                        <p class="alert-title mb-0.5">Nevezhetsz fiók nélkül is</p>
+                        <p>
+                            Ez az űrlap belépés nélkül is működik.
+                            <a href="/belepes?tovabb=<?= urlencode('/nevezes/' . $competition['id']) ?>" class="font-medium underline">Belépve</a>
+                            viszont előtöltjük az adataidat, másnak is nevezhetsz, és a nevezést később visszavonhatod.
+                        </p>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
 
         <!-- ============ Jobb oldal: verseny összefoglaló ============ -->
@@ -212,10 +272,27 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                     <?php if (isset($competition['registrant_count'])): ?>
                         <div class="px-6 py-4">
                             <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500 mb-1">Eddigi nevezők</dt>
-                            <dd class="text-sand-900 font-medium"><?= (int)$competition['registrant_count'] ?> fő</dd>
+                            <dd class="text-sand-900 font-medium flex items-center justify-between gap-2">
+                                <span><?= (int)$competition['registrant_count'] ?> fő</span>
+                                <a href="/nevezes/<?= e($competition['id']) ?>/nevezok"
+                                   class="text-sm font-semibold text-billiard-green-600 hover:underline">
+                                    Lista
+                                </a>
+                            </dd>
                         </div>
                     <?php endif; ?>
                 </dl>
+
+                <?php if ($isLoggedIn): ?>
+                    <div class="px-6 py-4 bg-sand-50 border-t border-sand-200">
+                        <p class="text-xs text-sand-500">
+                            Belépve: <span class="font-medium text-sand-700"><?= e($currentUser['name']) ?></span>
+                        </p>
+                        <a href="/fiok" class="text-sm font-semibold text-billiard-green-600 hover:underline">
+                            Nevezéseim
+                        </a>
+                    </div>
+                <?php endif; ?>
             </div>
         </aside>
     </div>

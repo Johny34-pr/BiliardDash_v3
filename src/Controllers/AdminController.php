@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\AppException;
 use App\Core\Database;
 use App\Core\Session;
+use App\Services\CommentService;
 use App\Services\NewsService;
 use App\Services\GalleryService;
 use App\Services\CompetitionService;
 use App\Services\ImageService;
+use App\Services\TopicService;
 use App\Services\ValidationService;
 
 class AdminController
@@ -18,6 +21,8 @@ class AdminController
     private GalleryService $galleryService;
     private CompetitionService $competitionService;
     private ValidationService $validationService;
+    private CommentService $commentService;
+    private TopicService $topicService;
 
     public function __construct()
     {
@@ -28,6 +33,8 @@ class AdminController
         $emailService = new \App\Services\EmailService($mailConfig);
         $this->competitionService = new CompetitionService($db, $emailService);
         $this->validationService = new ValidationService();
+        $this->commentService = new CommentService($db);
+        $this->topicService = new TopicService($db, $this->commentService);
     }
 
     /**
@@ -588,5 +595,174 @@ class AdminController
         header('Content-Type: text/csv; charset=UTF-8');
         header('Content-Disposition: attachment; filename="nevezesek_' . $id . '.csv"');
         echo $csv;
+    }
+
+    /**
+     * Nevezés törlése szervezői jogkörben.
+     *
+     * A felhasználói visszavonással szemben itt a határidő lejárta után is
+     * lehetséges a törlés, mert lemondást vagy hibás nevezést utólag is
+     * rendezni kell.
+     */
+    public function registrationDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $competitionId = $this->competitionService->deleteRegistrationAsAdmin($id);
+            Session::flash('success', 'A nevezés törölve.');
+            redirect('/admin/versenyek/' . $competitionId . '/nevezesek');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+            redirect('/admin/versenyek');
+        }
+    }
+
+    // =====================================================================
+    // Fórum moderálás
+    // =====================================================================
+
+    /**
+     * Topikok listája moderáláshoz (az elrejtettekkel együtt).
+     */
+    public function topicList(): void
+    {
+        $this->requireAdmin();
+
+        $topics = $this->topicService->getTopicsForModeration();
+        $pageTitle = 'Fórum topikok - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/forum/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Topik elrejtése vagy visszaállítása.
+     */
+    public function topicToggleHidden(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $hidden = $this->topicService->toggleHidden($id);
+            Session::flash('success', $hidden
+                ? 'A topik elrejtve a fórumról.'
+                : 'A topik újra látható a fórumon.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/admin/forum');
+    }
+
+    /**
+     * Topik lezárása vagy újranyitása.
+     *
+     * A lezárt topik olvasható marad, de nem fogad új hozzászólást.
+     */
+    public function topicToggleLocked(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $locked = $this->topicService->toggleLocked($id);
+            Session::flash('success', $locked
+                ? 'A topik lezárva, nem fogad új hozzászólást.'
+                : 'A topik újra megnyitva.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/admin/forum');
+    }
+
+    /**
+     * Topik végleges törlése a hozzászólásaival együtt.
+     */
+    public function topicDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $this->topicService->deleteTopic($id);
+            Session::flash('success', 'A topik és a hozzászólásai véglegesen törölve.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/admin/forum');
+    }
+
+    /**
+     * Hozzászólások listája moderáláshoz (az elrejtettekkel együtt).
+     */
+    public function commentList(): void
+    {
+        $this->requireAdmin();
+
+        $comments = $this->commentService->getCommentsForModeration();
+        $pageTitle = 'Fórum hozzászólások - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/forum/comments.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Hozzászólás elrejtése vagy visszaállítása.
+     *
+     * Az elrejtés visszavonható, ezért ez az elsődleges moderálási eszköz.
+     */
+    public function commentToggleHidden(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            // A topik azonosítója a törlés/elrejtés utáni számlálófrissítéshez
+            $comment = $this->commentService->getCommentById($id);
+
+            $hidden = $this->commentService->toggleHidden($id);
+
+            if ($comment !== null) {
+                $this->topicService->refreshActivity($comment['topic_id']);
+            }
+
+            Session::flash('success', $hidden
+                ? 'A hozzászólás elrejtve a fórumról.'
+                : 'A hozzászólás újra látható a fórumon.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/admin/forum/hozzaszolasok');
+    }
+
+    /**
+     * Hozzászólás végleges törlése.
+     */
+    public function commentDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $comment = $this->commentService->getCommentById($id);
+
+            $this->commentService->deleteComment($id);
+
+            if ($comment !== null) {
+                $this->topicService->refreshActivity($comment['topic_id']);
+            }
+
+            Session::flash('success', 'A hozzászólás véglegesen törölve.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        }
+
+        redirect('/admin/forum/hozzaszolasok');
     }
 }

@@ -72,7 +72,9 @@
                         <th scope="col">Név</th>
                         <th scope="col">E-mail</th>
                         <th scope="col">Telefon</th>
+                        <th scope="col">Rögzítés módja</th>
                         <th scope="col">Nevezés ideje</th>
+                        <th scope="col" class="text-right">Művelet</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -94,10 +96,25 @@
                                     <?= e($registration['phone']) ?>
                                 </a>
                             </td>
+                            <td class="whitespace-nowrap">
+                                <?php if (empty($registration['created_by_user_id'])): ?>
+                                    <span class="badge badge-neutral">Vendég</span>
+                                <?php else: ?>
+                                    <span class="badge badge-green">Fiókkal</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="whitespace-nowrap text-sand-500">
                                 <time datetime="<?= e($registration['registered_at']) ?>">
                                     <?= date('Y. m. d. H:i', strtotime($registration['registered_at'])) ?>
                                 </time>
+                            </td>
+                            <td>
+                                <div class="flex justify-end">
+                                    <form method="POST" action="/admin/versenyek/nevezes/<?= e($registration['id']) ?>/torol"
+                                          data-confirm="Biztosan törlöd <?= e($registration['full_name']) ?> nevezését? A művelet nem visszavonható.">
+                                        <button type="submit" class="btn btn-danger btn-sm">Törlés</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; ?>

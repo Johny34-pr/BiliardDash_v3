@@ -40,70 +40,81 @@ class CompetitionController
     }
 
     /**
-     * Nevezési űrlap megjelenítése egy adott versenyhez.
+     * Nyilvános nevezői lista egy versenyhez.
+     *
+     * Belépés nélkül is elérhető, ezért csak a nevezők nevét és a nevezés
+     * idejét jeleníti meg - e-mail címet és telefonszámot nem.
      */
-    public function showForm(string $versenyId): void
+    public function registrants(string $versenyId): void
     {
         $competition = $this->competitionService->getCompetitionById($versenyId);
 
         if ($competition === null) {
-            http_response_code(404);
-            require __DIR__ . '/../Views/errors/404.php';
+            $this->renderNotFound();
             return;
         }
 
-        $errors = [];
-        $data = [];
-        $deadlinePassed = false;
-        $duplicateError = false;
-        $success = isset($_GET['success']) && $_GET['success'] === '1';
-        $pageTitle = 'Nevezés: ' . e($competition['name']);
+        $registrants = $this->competitionService->getPublicRegistrants($versenyId);
+        $deadlinePassed = $this->isDeadlinePassed($competition);
+        $pageTitle = 'Nevezők: ' . $competition['name'] . ' - Magyar Biliárd';
 
-        // Check if deadline has passed
-        if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
-            $deadlinePassed = true;
-        }
-
-        // Render view within layout
         ob_start();
-        require __DIR__ . '/../Views/competitions/register.php';
+        require __DIR__ . '/../Views/competitions/registrants.php';
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';
     }
 
     /**
+     * Nevezési űrlap megjelenítése egy adott versenyhez.
+     *
+     * Bejelentkezett felhasználónál a "magamnak" mód a fiók adataival tölti
+     * elő az űrlapot. Vendégként az űrlap üresen jelenik meg, a nevezés
+     * belépés nélkül is működik.
+     */
+    public function showForm(string $versenyId): void
+    {
+        $competition = $this->competitionService->getCompetitionById($versenyId);
+
+        if ($competition === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $user = Session::user();
+
+        // Alapértelmezés belépve: magamnak nevezek
+        $registerFor = ($_GET['kinek'] ?? '') === 'masnak' ? 'other' : 'self';
+
+        $data = ($user !== null && $registerFor === 'self')
+            ? ['fullName' => $user['name'], 'email' => $user['email'], 'phone' => $user['phone']]
+            : [];
+
+        $this->renderForm($competition, [
+            'errors' => [],
+            'data' => $data,
+            'registerFor' => $registerFor,
+            'duplicateError' => false,
+            'success' => isset($_GET['success']) && $_GET['success'] === '1',
+        ]);
+    }
+
+    /**
      * Nevezési űrlap feldolgozása.
+     *
+     * Belépett felhasználó esetén a nevezés hozzá kötődik (created_by_user_id),
+     * így később visszavonhatja. Vendégként a nevezés kötetlen marad.
      */
     public function submitRegistration(string $versenyId): void
     {
         $competition = $this->competitionService->getCompetitionById($versenyId);
 
         if ($competition === null) {
-            http_response_code(404);
-            require __DIR__ . '/../Views/errors/404.php';
+            $this->renderNotFound();
             return;
         }
 
-        $errors = [];
-        $duplicateError = false;
-        $success = false;
-        $pageTitle = 'Nevezés: ' . e($competition['name']);
-
-        // Határidő ellenőrzés
-        if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
-            $deadlinePassed = true;
-            $data = [];
-
-            ob_start();
-            require __DIR__ . '/../Views/competitions/register.php';
-            $content = ob_get_clean();
-
-            require __DIR__ . '/../Views/layouts/main.php';
-            return;
-        }
-
-        $deadlinePassed = false;
+        $registerFor = ($_POST['register_for'] ?? '') === 'other' ? 'other' : 'self';
 
         $data = [
             'fullName' => trim($_POST['full_name'] ?? ''),
@@ -111,45 +122,86 @@ class CompetitionController
             'phone' => trim($_POST['phone'] ?? ''),
         ];
 
+        $state = [
+            'errors' => [],
+            'data' => $data,
+            'registerFor' => $registerFor,
+            'duplicateError' => false,
+            'success' => false,
+        ];
+
+        // Határidő ellenőrzés - a nézet a lejárt állapotot maga jelzi
+        if ($this->isDeadlinePassed($competition)) {
+            $this->renderForm($competition, $state);
+            return;
+        }
+
         // Validáció
         $validator = $this->validationService->validateRegistration($data);
         if (!$validator->isValid()) {
-            $errors = $validator->getErrors();
-
-            ob_start();
-            require __DIR__ . '/../Views/competitions/register.php';
-            $content = ob_get_clean();
-
-            require __DIR__ . '/../Views/layouts/main.php';
+            $state['errors'] = $validator->getErrors();
+            $this->renderForm($competition, $state);
             return;
         }
 
         // Duplikáció ellenőrzés
         if ($this->competitionService->checkDuplicateRegistration($versenyId, $data['email'])) {
-            $duplicateError = true;
-
-            ob_start();
-            require __DIR__ . '/../Views/competitions/register.php';
-            $content = ob_get_clean();
-
-            require __DIR__ . '/../Views/layouts/main.php';
+            $state['duplicateError'] = true;
+            $this->renderForm($competition, $state);
             return;
         }
 
-        // Nevezés rögzítése
+        // Nevezés rögzítése - belépve a felhasználóhoz kötve
         try {
-            $this->competitionService->registerForCompetition($versenyId, $data);
-            Session::flash('success', 'Sikeres nevezés! Visszaigazoló e-mailt küldtünk.');
+            $this->competitionService->registerForCompetition($versenyId, $data, Session::userId());
+
+            // Szándékosan nincs flash üzenet: a visszaigazolást a ?success=1
+            // paraméterre a nézet jeleníti meg, részletesebb tartalommal.
+            // Flash-sel együtt két helyen jelenne meg ugyanaz.
             redirect("/nevezes/{$versenyId}?success=1");
         } catch (\Throwable $e) {
             error_log('[CompetitionController] Nevezés hiba: ' . $e->getMessage());
-            $errors = ['general' => 'Hiba történt a nevezés során. Kérjük, próbálja újra.'];
-
-            ob_start();
-            require __DIR__ . '/../Views/competitions/register.php';
-            $content = ob_get_clean();
-
-            require __DIR__ . '/../Views/layouts/main.php';
+            $state['errors'] = ['general' => 'Hiba történt a nevezés során. Kérjük, próbálja újra.'];
+            $this->renderForm($competition, $state);
         }
+    }
+
+    // =====================================================================
+    // Segédmetódusok
+    // =====================================================================
+
+    private function isDeadlinePassed(array $competition): bool
+    {
+        return new \DateTime($competition['registration_deadline']) < new \DateTime();
+    }
+
+    /**
+     * Nevezési űrlap renderelése a fő layoutban.
+     *
+     * @param array{errors:array, data:array, registerFor:string, duplicateError:bool, success:bool} $state
+     */
+    private function renderForm(array $competition, array $state): void
+    {
+        $errors = $state['errors'];
+        $data = $state['data'];
+        $registerFor = $state['registerFor'];
+        $duplicateError = $state['duplicateError'];
+        $success = $state['success'];
+        $deadlinePassed = $this->isDeadlinePassed($competition);
+        $currentUser = Session::user();
+
+        $pageTitle = 'Nevezés: ' . $competition['name'] . ' - Magyar Biliárd';
+
+        ob_start();
+        require __DIR__ . '/../Views/competitions/register.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    private function renderNotFound(): void
+    {
+        http_response_code(404);
+        require __DIR__ . '/../Views/errors/404.php';
     }
 }

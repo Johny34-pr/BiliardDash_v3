@@ -54,6 +54,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // === Fórum: emoji beszúrás és karakterszámláló ===
+    initCommentForm();
+
     // === Kliens-oldali form validáció bekötése ===
     // Csak a data-validate attribútummal ellátott formokra
     document.querySelectorAll('form[data-validate]').forEach(function(form) {
@@ -145,4 +148,67 @@ function displayFormErrors(form, errors) {
             firstField.focus();
         }
     }
+}
+
+/**
+ * Fórum hozzászólás űrlap: emoji beszúrás és karakterszámláló.
+ *
+ * Az emoji a kurzor pozíciójába kerül, nem a szöveg végére. A számláló
+ * a maxlength attribútumból veszi a felső korlátot, így nem kell külön
+ * szinkronban tartani a szerveroldali szabállyal.
+ */
+function initCommentForm() {
+    var textarea = document.getElementById('body');
+    if (!textarea) {
+        return;
+    }
+
+    var counter = document.getElementById('body-counter');
+    var maxLength = parseInt(textarea.getAttribute('maxlength'), 10) || 0;
+
+    function updateCounter() {
+        if (!counter || !maxLength) {
+            return;
+        }
+        var length = textarea.value.length;
+        counter.textContent = length + ' / ' + maxLength;
+        // Közeledés a korláthoz: figyelmeztető szín
+        counter.classList.toggle('text-red-600', length >= maxLength);
+    }
+
+    /** Szöveg beszúrása a kurzor pozíciójába, a visszavonás megőrzésével */
+    function insertAtCursor(text) {
+        textarea.focus();
+
+        var start = textarea.selectionStart;
+        var end = textarea.selectionEnd;
+
+        // Ha a beszúrás átlépné a korlátot, nem csinálunk semmit
+        if (maxLength && textarea.value.length - (end - start) + text.length > maxLength) {
+            return;
+        }
+
+        // Ahol támogatott, az execCommand megőrzi a Ctrl+Z előzményt
+        var inserted = false;
+        if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+            inserted = document.execCommand('insertText', false, text);
+        }
+
+        if (!inserted) {
+            var value = textarea.value;
+            textarea.value = value.slice(0, start) + text + value.slice(end);
+            textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        }
+
+        updateCounter();
+    }
+
+    document.querySelectorAll('.js-emoji').forEach(function (button) {
+        button.addEventListener('click', function () {
+            insertAtCursor(button.getAttribute('data-emoji') || '');
+        });
+    });
+
+    textarea.addEventListener('input', updateCounter);
+    updateCounter();
 }
