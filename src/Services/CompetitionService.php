@@ -24,7 +24,7 @@ class CompetitionService
     /**
      * Összes verseny lekérdezése dátum szerint csökkenő sorrendben.
      *
-     * @return array<array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int}>
+     * @return array<array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int}>
      */
     public function getAllCompetitions(): array
     {
@@ -32,9 +32,12 @@ class CompetitionService
     }
 
     /**
-     * Nyitott versenyek lekérdezése (jövőbeli határidejű), dátum szerinti növekvő sorrendben.
+     * Meghirdetett versenyek: a nevezési határidő még nem járt le.
      *
-     * @return array<array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int}>
+     * A még meg nem nyílt nevezésű versenyek is benne vannak, a nevezés
+     * állapotát a hasRegistrationOpened() dönti el.
+     *
+     * @return array<array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int}>
      */
     public function getOpenCompetitions(): array
     {
@@ -44,7 +47,7 @@ class CompetitionService
     /**
      * Egy verseny lekérdezése ID alapján.
      *
-     * @return array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int}|null
+     * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int}|null
      */
     public function getCompetitionById(string $id): ?array
     {
@@ -54,7 +57,7 @@ class CompetitionService
     /**
      * Új verseny létrehozása.
      *
-     * @return array{id:string, name:string, date:string, venue:string, registration_deadline:string}
+     * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string}
      */
     public function createCompetition(array $data): array
     {
@@ -63,8 +66,9 @@ class CompetitionService
         $date = $data['date'];
         $venue = $data['venue'];
         $registrationDeadline = $data['registrationDeadline'];
+        $registrationOpensAt = $this->normalizeOpensAt($data['registrationOpensAt'] ?? null);
 
-        $this->competitionModel->create($id, $name, $date, $venue, $registrationDeadline);
+        $this->competitionModel->create($id, $name, $date, $venue, $registrationDeadline, $registrationOpensAt);
 
         return $this->competitionModel->findById($id);
     }
@@ -72,7 +76,7 @@ class CompetitionService
     /**
      * Verseny frissítése.
      *
-     * @return array{id:string, name:string, date:string, venue:string, registration_deadline:string}
+     * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string}
      */
     public function updateCompetition(string $id, array $data): array
     {
@@ -80,10 +84,60 @@ class CompetitionService
         $date = $data['date'];
         $venue = $data['venue'];
         $registrationDeadline = $data['registrationDeadline'];
+        $registrationOpensAt = $this->normalizeOpensAt($data['registrationOpensAt'] ?? null);
 
-        $this->competitionModel->update($id, $name, $date, $venue, $registrationDeadline);
+        $this->competitionModel->update($id, $name, $date, $venue, $registrationDeadline, $registrationOpensAt);
 
         return $this->competitionModel->findById($id);
+    }
+
+    /**
+     * Az űrlapról érkező nyitódátum előkészítése tárolásra.
+     *
+     * Az üresen hagyott mező azt jelenti, hogy a nevezés azonnal nyitott,
+     * ezt az adatbázisban NULL jelöli - nem üres string, mert abból a
+     * MySQL '0000-00-00' dátumot csinálna.
+     */
+    private function normalizeOpensAt(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Megnyílt-e már a nevezés.
+     *
+     * Nyitódátum nélkül (NULL) a nevezés a verseny kiírásától nyitott,
+     * ezért ilyenkor igazat ad vissza.
+     */
+    public function hasRegistrationOpened(array $competition): bool
+    {
+        $opensAt = $competition['registration_opens_at'] ?? null;
+
+        if ($opensAt === null || $opensAt === '') {
+            return true;
+        }
+
+        return new \DateTime($opensAt) <= new \DateTime();
+    }
+
+    /**
+     * Lejárt-e a nevezési határidő.
+     */
+    public function isDeadlinePassed(array $competition): bool
+    {
+        return new \DateTime($competition['registration_deadline']) < new \DateTime();
+    }
+
+    /**
+     * Fogad-e a verseny nevezést ebben a pillanatban.
+     *
+     * Két feltétel együtt: a nyitódátum már elmúlt, és a határidő még nem.
+     */
+    public function isRegistrationOpen(array $competition): bool
+    {
+        return $this->hasRegistrationOpened($competition) && !$this->isDeadlinePassed($competition);
     }
 
     /**
@@ -97,7 +151,7 @@ class CompetitionService
     /**
      * Nevezés rögzítése egy versenyre.
      *
-     * 1. Határidő ellenőrzés
+     * 1. Nevezési időablak ellenőrzése (nyitódátum és határidő)
      * 2. Duplikáció ellenőrzés
      * 3. Nevezés mentése
      * 4. Nevezőszám növelése
@@ -118,8 +172,13 @@ class CompetitionService
             throw AppException::notFound('A verseny nem található');
         }
 
-        // 1. Határidő ellenőrzés
-        if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
+        // 1a. Nyitódátum: a megnyílás előtt nem fogadunk nevezést
+        if (!$this->hasRegistrationOpened($competition)) {
+            throw AppException::registrationNotOpen('A nevezés még nem nyílt meg erre a versenyre');
+        }
+
+        // 1b. Határidő ellenőrzés
+        if ($this->isDeadlinePassed($competition)) {
             throw AppException::deadlinePassed('A nevezési határidő lejárt');
         }
 
@@ -289,7 +348,7 @@ class CompetitionService
         }
 
         // 2. Határidő: lejárt határidő után nem törölhető
-        if (new \DateTime($competition['registration_deadline']) < new \DateTime()) {
+        if ($this->isDeadlinePassed($competition)) {
             throw AppException::deadlinePassed(
                 'A nevezési határidő lejárt, a nevezés már nem vonható vissza'
             );

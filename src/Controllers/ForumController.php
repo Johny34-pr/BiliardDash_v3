@@ -56,7 +56,17 @@ class ForumController
         $topics = $this->topicService->getVisibleTopics(self::TOPICS_PER_PAGE, $offset);
         $currentUser = Session::user();
 
-        $pageTitle = 'Fórum - Magyar Biliárd';
+        $pageTitle = $page > 1
+            ? "Fórum ({$page}. oldal) - Magyar Biliárd"
+            : 'Fórum - Magyar Biliárd';
+        $metaDescription = 'A magyar biliárd közösség fóruma: kérdések, versenybeszámolók '
+            . 'és beszélgetés a játékról. Hozzászólni belépés nélkül is lehet.';
+
+        // Lapozásnál a lapszám valódi tartalmi különbség, ezért az adott lap
+        // önmagára kanonizál - különben minden lap az elsőnek a másolata lenne.
+        if ($page > 1) {
+            $canonical = siteUrl('/forum') . '?oldal=' . $page;
+        }
 
         ob_start();
         require __DIR__ . '/../Views/forum/index.php';
@@ -346,13 +356,52 @@ class ForumController
             ? $this->commentService->getVoterVotes($comments, Session::voterKey())
             : [];
 
-        $pageTitle = $topic['title'] . ' - Fórum - Magyar Biliárd';
+        $pageTitle = $page > 1
+            ? $topic['title'] . " ({$page}. oldal) - Fórum - Magyar Biliárd"
+            : $topic['title'] . ' - Fórum - Magyar Biliárd';
+
+        // A topik nyitó bejegyzése adja a leírást: ez a téma tartalma.
+        $metaDescription = $this->buildTopicDescription($topic);
+        $ogType = 'article';
+
+        // Lapozásnál az adott lap önmagára kanonizál
+        if ($page > 1) {
+            $canonical = siteUrl('/forum/' . $topic['id']) . '?oldal=' . $page;
+        }
 
         ob_start();
         require __DIR__ . '/../Views/forum/show.php';
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Oldalleírás előállítása egy topik nyitó bejegyzéséből.
+     *
+     * A body egyszerű szöveg, de tartalmazhat sortöréseket és emojikat.
+     * A keresők kb. 160 karaktert jelenítenek meg, ezért szóhatáron vágunk.
+     */
+    private function buildTopicDescription(array $topic): string
+    {
+        $body = trim((string) preg_replace('/\s+/u', ' ', $topic['body']));
+
+        if ($body === '') {
+            return $topic['title'] . ' - beszélgetés a Magyar Biliárd fórumán.';
+        }
+
+        if (mb_strlen($body) <= 160) {
+            return $body;
+        }
+
+        $cut = mb_substr($body, 0, 160);
+        $lastSpace = mb_strrpos($cut, ' ');
+
+        if ($lastSpace !== false && $lastSpace > 100) {
+            $cut = mb_substr($cut, 0, $lastSpace);
+        }
+
+        return rtrim($cut, " ,.;:-") . '…';
     }
 
     private function renderNotFound(): void

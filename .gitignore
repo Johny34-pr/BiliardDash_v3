@@ -27,10 +27,12 @@ composer.phar
 # ==========================================================================
 # Felhasználó által feltöltött tartalom
 # ==========================================================================
-# A galéria képei futásidőben keletkeznek, nem a projekt része.
-# A könyvtárstruktúrát a .gitkeep fájlok tartják meg.
+# A galéria képei és a szerkesztőbe feltöltött média futásidőben keletkezik,
+# nem a projekt része. A könyvtárstruktúrát a .gitkeep fájlok tartják meg.
 /public/uploads/albums/*
 !/public/uploads/albums/.gitkeep
+/public/uploads/media/*
+!/public/uploads/media/.gitkeep
 
 # ==========================================================================
 # Naplófájlok

@@ -6,12 +6,18 @@
  * jeleníti meg. Az e-mail cím és a telefonszám személyes adat, azt kizárólag
  * a szervező látja az admin felületen.
  *
- * @var array $competition    Verseny adatai
- * @var array $registrants    Nevezők (full_name, registered_at)
- * @var bool  $deadlinePassed Lejárt-e a nevezési határidő
+ * @var array $competition        Verseny adatai
+ * @var array $registrants        Nevezők (full_name, registered_at)
+ * @var bool  $deadlinePassed     Lejárt-e a nevezési határidő
+ * @var bool  $registrationOpened Megnyílt-e már a nevezés
  */
 $date = new DateTimeImmutable($competition['date']);
 $deadline = new DateTimeImmutable($competition['registration_deadline']);
+
+// A nevezés még nem nyílt meg: ilyenkor sem nevezni nem lehet, sem
+// "Lezárult" állapotról nem beszélhetünk
+$notYetOpen = !($registrationOpened ?? true);
+$canRegister = !$deadlinePassed && !$notYetOpen;
 ?>
 
 <div class="max-w-3xl mx-auto reveal">
@@ -46,9 +52,13 @@ $deadline = new DateTimeImmutable($competition['registration_deadline']);
             <div class="inline-flex items-center gap-1.5">
                 <dt class="text-sand-500">Nevezés:</dt>
                 <dd>
-                    <span class="badge <?= $deadlinePassed ? 'badge-neutral' : 'badge-green' ?>">
-                        <?= $deadlinePassed ? 'Lezárult' : 'Nyitott' ?>
-                    </span>
+                    <?php if ($notYetOpen): ?>
+                        <span class="badge badge-gold">Hamarosan</span>
+                    <?php else: ?>
+                        <span class="badge <?= $deadlinePassed ? 'badge-neutral' : 'badge-green' ?>">
+                            <?= $deadlinePassed ? 'Lezárult' : 'Nyitott' ?>
+                        </span>
+                    <?php endif; ?>
                 </dd>
             </div>
         </dl>
@@ -63,11 +73,15 @@ $deadline = new DateTimeImmutable($competition['registration_deadline']);
             </span>
             <p class="font-semibold text-sand-900">Még nincs nevező</p>
             <p class="text-sm text-sand-500 mt-1 max-w-sm">
-                <?= $deadlinePassed
-                    ? 'Erre a versenyre nem érkezett nevezés.'
-                    : 'Legyél te az első, aki nevez erre a versenyre.' ?>
+                <?php if ($notYetOpen): ?>
+                    A nevezés még nem nyílt meg erre a versenyre.
+                <?php elseif ($deadlinePassed): ?>
+                    Erre a versenyre nem érkezett nevezés.
+                <?php else: ?>
+                    Legyél te az első, aki nevez erre a versenyre.
+                <?php endif; ?>
             </p>
-            <?php if (!$deadlinePassed): ?>
+            <?php if ($canRegister): ?>
                 <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-primary btn-sm mt-6">Nevezés</a>
             <?php endif; ?>
         </div>
@@ -78,7 +92,7 @@ $deadline = new DateTimeImmutable($competition['registration_deadline']);
                 <h2 class="font-semibold text-billiard-green-900">
                     <?= count($registrants) ?> nevező
                 </h2>
-                <?php if (!$deadlinePassed): ?>
+                <?php if ($canRegister): ?>
                     <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-primary btn-sm">Nevezés</a>
                 <?php endif; ?>
             </div>

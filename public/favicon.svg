@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Magyar Biliárd - weboldal ikon (favicon)
+
+    Sávos biliárdgolyó a márka színeivel: biliárdposztó zöld háttér
+    (billiard-green-900), meleg sárgaréz arany sáv (billiard-gold-400) és
+    törtfehér golyó (sand-50). A forma szándékosan egyszerű, hogy 16x16
+    pixelen is felismerhető maradjon.
+
+    Ez a fájl az ikonok forrása. A raszteres változatokat (favicon.ico,
+    apple-touch-icon.png, icon-192.png, icon-512.png, og-default.png) a
+    tools/generate-icons.php állítja elő ugyanezekkel az arányokkal.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="favicon-title">
+    <title id="favicon-title">Magyar Biliárd</title>
+
+    <defs>
+        <clipPath id="ball-clip">
+            <circle cx="32" cy="32" r="19"/>
+        </clipPath>
+    </defs>
+
+    <!-- Háttér: lekerekített négyzet, biliárdposztó zöld -->
+    <rect width="64" height="64" rx="14" fill="#0c2f22"/>
+
+    <!-- Golyó teste -->
+    <circle cx="32" cy="32" r="19" fill="#fbfaf8"/>
+
+    <!-- Arany sáv, a golyó körvonalára vágva -->
+    <rect x="13" y="20" width="38" height="24" fill="#e5b544" clip-path="url(#ball-clip)"/>
+
+    <!-- Számmező a sáv közepén -->
+    <circle cx="32" cy="32" r="8" fill="#fbfaf8"/>
+</svg>

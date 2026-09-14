@@ -8,6 +8,13 @@ declare(strict_types=1);
  * @var \App\Core\Router $router
  */
 
+// === Keresőknek szóló végpontok ===
+// Futásidőben állnak össze, hogy az új tartalom azonnal megjelenjen bennük.
+// Szándékosan nem fizikai fájlok: a gyökér .htaccess a létező public/ fájlt
+// előbb szolgálná ki, mint a front controllert.
+$router->get('/sitemap.xml', 'SitemapController@index');
+$router->get('/robots.txt', 'SitemapController@robots');
+
 // === Publikus útvonalak ===
 
 $router->get('/', 'HomeController@index');
@@ -59,11 +66,15 @@ $router->post('/admin/hirek/{id}/szerkeszt', 'AdminController@newsUpdate');
 $router->post('/admin/hirek/{id}/torol', 'AdminController@newsDelete');
 
 // Admin - Galéria kezelés
+// A "kep/..." útvonal a paraméteres minták előtt szerepel, hogy a "kep"
+// szó ne album azonosítóként értelmeződjön.
 $router->get('/admin/galeria', 'AdminController@albumList');
 $router->post('/admin/galeria/uj', 'AdminController@albumStore');
+$router->post('/admin/galeria/kep/{id}/torol', 'AdminController@imageDelete');
 $router->get('/admin/galeria/{id}/feltolt', 'AdminController@imageUploadForm');
 $router->post('/admin/galeria/{id}/feltolt', 'AdminController@imageUpload');
-$router->post('/admin/galeria/kep/{id}/torol', 'AdminController@imageDelete');
+$router->post('/admin/galeria/{id}/szerkeszt', 'AdminController@albumUpdate');
+$router->post('/admin/galeria/{id}/torol', 'AdminController@albumDelete');
 
 // Admin - Versenykezelés
 $router->get('/admin/versenyek', 'AdminController@competitionList');
@@ -76,6 +87,12 @@ $router->get('/admin/versenyek/{id}/nevezesek', 'AdminController@registrationLis
 $router->get('/admin/versenyek/{id}/export', 'AdminController@exportCsv');
 // Egy konkrét nevezés törlése szervezői jogkörben
 $router->post('/admin/versenyek/nevezes/{id}/torol', 'AdminController@registrationDelete');
+
+// Admin - Szerkesztő végpontjai (JSON, a TinyMCE hívja)
+$router->post('/admin/media/kep', 'AdminMediaController@uploadImage');
+$router->post('/admin/media/dokumentum', 'AdminMediaController@uploadDocument');
+$router->get('/admin/media/lista', 'AdminMediaController@library');
+$router->get('/admin/media/hivatkozasok', 'AdminMediaController@linkList');
 
 // Admin - Fórum moderálás
 // A konkrét útvonalak a paraméteres minták előtt szerepelnek.

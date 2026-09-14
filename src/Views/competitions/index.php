@@ -51,7 +51,16 @@ $now = new DateTimeImmutable();
             $date = new DateTimeImmutable($competition['date']);
             $deadline = new DateTimeImmutable($competition['registration_deadline']);
             $daysLeft = (int)$now->diff($deadline)->format('%r%a');
-            $isUrgent = $daysLeft >= 0 && $daysLeft <= 3;
+
+            // Nyitódátum: üres érték = a nevezés a kiírástól nyitott
+            $opensAt = !empty($competition['registration_opens_at'])
+                ? new DateTimeImmutable($competition['registration_opens_at'])
+                : null;
+            $notYetOpen = $opensAt !== null && $opensAt > $now;
+
+            // A határidő közeledtét csak akkor jelezzük, ha egyáltalán
+            // lehet már nevezni - különben félrevezető lenne
+            $isUrgent = !$notYetOpen && $daysLeft >= 0 && $daysLeft <= 3;
             ?>
             <article class="card card-interactive overflow-hidden reveal reveal-<?= min($i + 1, 5) ?>">
                 <div class="flex flex-col sm:flex-row">
@@ -78,7 +87,9 @@ $now = new DateTimeImmutable();
                                 <h2 class="text-lg md:text-xl font-semibold tracking-tightest text-billiard-green-900">
                                     <?= e($competition['name']) ?>
                                 </h2>
-                                <?php if ($isUrgent): ?>
+                                <?php if ($notYetOpen): ?>
+                                    <span class="badge badge-gold">Nevezés hamarosan</span>
+                                <?php elseif ($isUrgent): ?>
                                     <span class="badge badge-gold">
                                         <?= $daysLeft === 0 ? 'Ma zárul' : $daysLeft . ' nap a határidőig' ?>
                                     </span>
@@ -94,6 +105,21 @@ $now = new DateTimeImmutable();
                                     <dt class="sr-only">Helyszín</dt>
                                     <dd><?= e($competition['venue']) ?></dd>
                                 </div>
+
+                                <?php if ($notYetOpen): ?>
+                                    <div class="inline-flex items-center gap-1.5">
+                                        <svg class="w-4 h-4 text-sand-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
+                                        </svg>
+                                        <dt class="sr-only">Nevezés nyitása</dt>
+                                        <dd>
+                                            Nevezés nyitása:
+                                            <time datetime="<?= e($competition['registration_opens_at']) ?>" class="font-medium">
+                                                <?= $opensAt->format('Y. m. d. H:i') ?>
+                                            </time>
+                                        </dd>
+                                    </div>
+                                <?php endif; ?>
 
                                 <div class="inline-flex items-center gap-1.5">
                                     <svg class="w-4 h-4 text-sand-400 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
@@ -125,12 +151,19 @@ $now = new DateTimeImmutable();
 
                         <!-- Műveletek -->
                         <div class="shrink-0 flex flex-col gap-2">
-                            <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-primary w-full md:w-auto">
-                                Nevezés
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
-                                </svg>
-                            </a>
+                            <?php if ($notYetOpen): ?>
+                                <!-- A nevezés még zárt, de a verseny adatlapja megnyitható -->
+                                <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-secondary w-full md:w-auto">
+                                    Részletek
+                                </a>
+                            <?php else: ?>
+                                <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-primary w-full md:w-auto">
+                                    Nevezés
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
+                                    </svg>
+                                </a>
+                            <?php endif; ?>
                             <a href="/nevezes/<?= e($competition['id']) ?>/nevezok" class="btn btn-secondary btn-sm w-full md:w-auto">
                                 Nevezők
                             </a>

@@ -1,67 +1,82 @@
 <?php
 /**
- * TinyMCE rich text szerkesztő - közös inicializálás
+ * Blogszerkesztő betöltése (TinyMCE)
  *
- * A hír létrehozó és szerkesztő nézet is ezt tölti be, így a szerkesztő
- * beállításai (nyelv, eszköztár, tipográfia) egy helyen módosíthatók.
+ * A hír létrehozó és szerkesztő nézet is ezt tölti be. A tényleges
+ * beállítás a public/assets/js/editor.js fájlban van; ez a partial csak a
+ * kiszolgálóoldali adatokat adja át a szerkesztő textarea data-attribútumain.
  *
- * A szerkesztő tartalmi stílusa szándékosan megegyezik a publikus oldal
- * .article-body stílusával, hogy a szerkesztés közbeni kép megfeleljen a
- * végleges megjelenésnek.
+ * Így a végpontok és a méretkorlátok PHP oldalon, egy helyen módosíthatók,
+ * a JavaScript pedig gyorsítótárazható külön fájl marad.
+ *
+ * Fontos: a textarea (#content) a hívó nézetben jön létre, ezért az
+ * attribútumokat itt, utólag tesszük rá.
  *
  * Requirement 2.4: félkövér, dőlt, felsorolás és hivatkozás formázás.
  */
-$tinymceApiKey = 'dg1pun9r315oclucr8p9k2vbr2diads6ekliyw49ihzw0450';
+
+use App\Services\MediaService;
+
+/*
+ * A TinyMCE CDN kulcsa a .env fájlból jön (TINYMCE_API_KEY), nem a
+ * forráskódból - így nem kerül verziókövetésbe.
+ *
+ * Kulcs nélkül a szerkesztő a 'no-api-key' azonosítóval is betölthető és
+ * használható, csak figyelmeztetést jelenít meg. Ilyenkor a szerkesztő alatt
+ * jelezzük a szervezőnek, mit kell beállítani.
+ */
+$appConfig = require __DIR__ . '/../../../config/app.php';
+$tinymceApiKey = $appConfig['tinymce_api_key'] ?? '';
+$hasTinymceKey = $tinymceApiKey !== '';
+$tinymceCdnKey = $hasTinymceKey ? $tinymceApiKey : 'no-api-key';
+
+/** A szerkesztő által hívott végpontok */
+$editorEndpoints = [
+    'upload-image' => '/admin/media/kep',
+    'upload-document' => '/admin/media/dokumentum',
+    'media-library' => '/admin/media/lista',
+    'link-list' => '/admin/media/hivatkozasok',
+];
 ?>
-<script src="https://cdn.tiny.cloud/1/<?= e($tinymceApiKey) ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+
+<!-- A szerkesztő beállításai a textarea data-attribútumain keresztül -->
 <script>
-    tinymce.init({
-        selector: '#content',
-        language: 'hu_HU',
-        menubar: false,
-        statusbar: false,
-        branding: false,
-        plugins: 'lists link autolink table charmap searchreplace visualblocks wordcount autoresize',
-        toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link blockquote | removeformat',
-        block_formats: 'Bekezdés=p; Alcím=h2; Kisebb alcím=h3',
-        /*
-         * Az ékezetes karakterek valódi UTF-8 karakterként kerüljenek mentésre,
-         * ne névvel megadott HTML entitásként (&aacute;). Az entitások ugyanis
-         * az összefoglalóba nyersen bekerülve szó szerint jelennének meg.
-         */
-        entity_encoding: 'raw',
-        /* Beillesztésnél a formázás nélküli szöveg legyen az alapértelmezés */
-        paste_as_text: false,
-        /* A szerkesztő magassága a tartalomhoz igazodik */
-        min_height: 460,
-        max_height: 900,
-        autoresize_bottom_margin: 24,
-        // A szerkesztő felületének illesztése az oldal design tokenjeihez
-        content_style: `
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            body {
-                font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-                font-size: 17px;
-                line-height: 1.75;
-                color: #524b40;
-                margin: 1.25rem 1.5rem;
-                padding: 0;
-            }
-            /* Az első elem felett ne legyen dupla térköz */
-            body > *:first-child { margin-top: 0; }
-            h2, h3 { color: #0c2f22; font-weight: 600; line-height: 1.3; }
-            h2 { font-size: 1.5rem; margin-top: 2em; }
-            h3 { font-size: 1.25rem; margin-top: 2em; }
-            a { color: #1a7a53; text-underline-offset: 3px; }
-            strong { color: #1f1c18; }
-            blockquote {
-                padding-left: 1.25rem;
-                border-left: 3px solid #eccb70;
-                font-style: italic;
-                margin-left: 0;
-            }
-            ul, ol { padding-left: 1.5rem; }
-            li::marker { color: #d99a26; }
-        `
-    });
+    (function () {
+        var textarea = document.getElementById('content');
+        if (!textarea) {
+            return;
+        }
+
+        var settings = <?= json_encode([
+            'data-upload-image' => $editorEndpoints['upload-image'],
+            'data-upload-document' => $editorEndpoints['upload-document'],
+            'data-media-library' => $editorEndpoints['media-library'],
+            'data-link-list' => $editorEndpoints['link-list'],
+            'data-max-image-mb' => (int) (MediaService::MAX_IMAGE_BYTES / 1048576),
+            'data-max-document-mb' => (int) (MediaService::MAX_DOCUMENT_BYTES / 1048576),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+
+        Object.keys(settings).forEach(function (name) {
+            textarea.setAttribute(name, settings[name]);
+        });
+    })();
 </script>
+
+<script src="https://cdn.tiny.cloud/1/<?= e($tinymceCdnKey) ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="/assets/js/editor.js"></script>
+
+<?php if (!$hasTinymceKey): ?>
+    <!-- Beállítási emlékeztető: a szerkesztő működik, de figyelmeztetést mutat -->
+    <div class="alert alert-warning mt-3" role="status">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+        <div class="text-sm">
+            <p class="alert-title mb-0.5">A szerkesztőhöz nincs API kulcs beállítva</p>
+            <p>
+                A szerkesztő működik, de a TinyMCE figyelmeztetést jelenít meg. A kulcs a
+                <code>.env</code> fájl <code>TINYMCE_API_KEY</code> beállításába kerül.
+            </p>
+        </div>
+    </div>
+<?php endif; ?>

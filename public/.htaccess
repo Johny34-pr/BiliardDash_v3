@@ -72,8 +72,13 @@ Options -Indexes
 </IfModule>
 
 # =============================================================================
-# Karakterkódolás
+# Karakterkódolás és MIME típusok
 # =============================================================================
 <IfModule mod_mime.c>
     AddDefaultCharset UTF-8
+
+    # A webmanifest és az SVG ikon helyes MIME típusa. Nélkülük a böngésző
+    # figyelmeztetést ad, illetve nem ismeri fel a fájlt.
+    AddType application/manifest+json .webmanifest
+    AddType image/svg+xml .svg
 </IfModule>

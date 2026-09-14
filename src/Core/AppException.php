@@ -62,4 +62,15 @@ class AppException extends Exception
     {
         return new self($message, self::DEADLINE_PASSED);
     }
+
+    /**
+     * A nevezés még nem nyílt meg (a nyitódátum a jövőben van).
+     *
+     * A lejárt határidővel szemben ez átmeneti állapot: a művelet később
+     * elvégezhető lesz, ezért nem 410 Gone, hanem 403 Forbidden.
+     */
+    public static function registrationNotOpen(string $message = 'A nevezés még nem nyílt meg'): self
+    {
+        return new self($message, self::FORBIDDEN);
+    }
 }

@@ -8,19 +8,32 @@ use PDO;
 
 class Competition
 {
+    /**
+     * A versenyek lekérdezéseiben használt oszloplista.
+     *
+     * Egy helyen definiálva, hogy a findOpen/findAll/findById ugyanazt az
+     * adatkört adja vissza, és új oszlop hozzáadásakor ne csúszhassanak szét.
+     */
+    private const COLUMNS = 'id, name, date, venue, registration_opens_at, registration_deadline,
+                    registrant_count, created_at, updated_at';
+
     public function __construct(private PDO $db)
     {
     }
 
     /**
-     * Nyitott versenyek lekérdezése (határidő még nem járt le), dátum szerint növekvő sorrendben.
+     * Nevezésre meghirdetett versenyek: a határidő még nem járt le.
      *
-     * @return array<array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}>
+     * A még nem megnyílt nevezésű versenyek is szerepelnek a listában,
+     * hogy a látogató előre lássa őket - a nevezés gomb helyett a nyitás
+     * időpontja jelenik meg. Így a kiírás és a nevezés szétválik.
+     *
+     * @return array<array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}>
      */
     public function findOpen(): array
     {
         $stmt = $this->db->query(
-            'SELECT id, name, date, venue, registration_deadline, registrant_count, created_at, updated_at
+            'SELECT ' . self::COLUMNS . '
              FROM competitions
              WHERE registration_deadline > NOW()
              ORDER BY date ASC'
@@ -32,12 +45,12 @@ class Competition
     /**
      * Összes verseny lekérdezése dátum szerint csökkenő sorrendben.
      *
-     * @return array<array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}>
+     * @return array<array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}>
      */
     public function findAll(): array
     {
         $stmt = $this->db->query(
-            'SELECT id, name, date, venue, registration_deadline, registrant_count, created_at, updated_at
+            'SELECT ' . self::COLUMNS . '
              FROM competitions
              ORDER BY date DESC'
         );
@@ -48,12 +61,12 @@ class Competition
     /**
      * Egy verseny lekérdezése ID alapján.
      *
-     * @return array{id:string, name:string, date:string, venue:string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}|null
+     * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}|null
      */
     public function findById(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, name, date, venue, registration_deadline, registrant_count, created_at, updated_at
+            'SELECT ' . self::COLUMNS . '
              FROM competitions
              WHERE id = :id'
         );
@@ -65,12 +78,21 @@ class Competition
 
     /**
      * Új verseny létrehozása.
+     *
+     * @param string|null $registrationOpensAt A nevezés nyitásának időpontja,
+     *                                         vagy null, ha azonnal nyitott.
      */
-    public function create(string $id, string $name, string $date, string $venue, string $registrationDeadline): bool
-    {
+    public function create(
+        string $id,
+        string $name,
+        string $date,
+        string $venue,
+        string $registrationDeadline,
+        ?string $registrationOpensAt = null
+    ): bool {
         $stmt = $this->db->prepare(
-            'INSERT INTO competitions (id, name, date, venue, registration_deadline)
-             VALUES (:id, :name, :date, :venue, :registration_deadline)'
+            'INSERT INTO competitions (id, name, date, venue, registration_opens_at, registration_deadline)
+             VALUES (:id, :name, :date, :venue, :registration_opens_at, :registration_deadline)'
         );
 
         return $stmt->execute([
@@ -78,18 +100,30 @@ class Competition
             ':name' => $name,
             ':date' => $date,
             ':venue' => $venue,
+            ':registration_opens_at' => $registrationOpensAt,
             ':registration_deadline' => $registrationDeadline,
         ]);
     }
 
     /**
      * Verseny frissítése.
+     *
+     * @param string|null $registrationOpensAt A nevezés nyitásának időpontja,
+     *                                         vagy null, ha azonnal nyitott.
      */
-    public function update(string $id, string $name, string $date, string $venue, string $registrationDeadline): bool
-    {
+    public function update(
+        string $id,
+        string $name,
+        string $date,
+        string $venue,
+        string $registrationDeadline,
+        ?string $registrationOpensAt = null
+    ): bool {
         $stmt = $this->db->prepare(
             'UPDATE competitions
-             SET name = :name, date = :date, venue = :venue, registration_deadline = :registration_deadline
+             SET name = :name, date = :date, venue = :venue,
+                 registration_opens_at = :registration_opens_at,
+                 registration_deadline = :registration_deadline
              WHERE id = :id'
         );
 
@@ -98,6 +132,7 @@ class Competition
             ':name' => $name,
             ':date' => $date,
             ':venue' => $venue,
+            ':registration_opens_at' => $registrationOpensAt,
             ':registration_deadline' => $registrationDeadline,
         ]);
     }

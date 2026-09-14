@@ -37,6 +37,13 @@ class ValidationService
         return $v;
     }
 
+    /**
+     * Verseny validálása.
+     *
+     * A nevezés nyitódátuma (registrationOpensAt) nem kötelező: üresen
+     * hagyva a nevezés a kiírástól a határidőig nyitott. Ha meg van adva,
+     * a határidő előtt kell lennie, különben a nevezés soha nem nyílna meg.
+     */
     public function validateCompetition(array $data): Validator
     {
         $v = new Validator();
@@ -47,7 +54,21 @@ class ValidationService
           ->required('venue', $data['venue'] ?? null, 'A helyszín megadása kötelező')
           ->maxLength('venue', $data['venue'] ?? null, 200, 'A helyszín maximum 200 karakter')
           ->required('registrationDeadline', $data['registrationDeadline'] ?? null, 'A nevezési határidő megadása kötelező')
-          ->date('registrationDeadline', $data['registrationDeadline'] ?? null, 'Érvénytelen határidő formátum');
+          ->date('registrationDeadline', $data['registrationDeadline'] ?? null, 'Érvénytelen határidő formátum')
+          ->date('registrationOpensAt', $data['registrationOpensAt'] ?? null, 'Érvénytelen nyitódátum formátum');
+
+        $opensAt = trim((string) ($data['registrationOpensAt'] ?? ''));
+        $deadline = trim((string) ($data['registrationDeadline'] ?? ''));
+
+        // Sorrend ellenőrzése - csak ha mindkét időpont önmagában érvényes
+        if ($opensAt !== '' && $deadline !== ''
+            && $v->getError('registrationOpensAt') === null
+            && $v->getError('registrationDeadline') === null
+            && strtotime($opensAt) >= strtotime($deadline)
+        ) {
+            $v->addError('registrationOpensAt', 'A nyitódátumnak a nevezési határidő előtt kell lennie');
+        }
+
         return $v;
     }
 

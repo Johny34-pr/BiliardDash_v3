@@ -13,8 +13,14 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Core\AppException;
+use App\Core\Env;
 use App\Core\Router;
 use App\Core\Session;
+
+// Környezeti változók betöltése a .env fájlból.
+// Ez a legelső lépés, hogy minden konfigurációs fájl számíthasson rá,
+// függetlenül attól, milyen sorrendben töltődnek be.
+Env::load();
 
 // Session indítása
 Session::start();

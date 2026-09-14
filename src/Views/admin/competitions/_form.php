@@ -8,7 +8,7 @@
  * @var string $formAction  Az űrlap action attribútuma
  * @var string $submitLabel A beküldő gomb felirata
  * @var array  $errors      Validációs hibák
- * @var array  $data        Űrlap adatok (name, date, venue, registrationDeadline)
+ * @var array  $data        Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
  */
 ?>
 <form method="POST" action="<?= e($formAction) ?>" class="card p-6 md:p-8 space-y-6" novalidate data-validate>
@@ -30,36 +30,61 @@
         <?php endif; ?>
     </div>
 
-    <!-- Dátum és határidő egymás mellett asztali nézetben -->
-    <div class="grid gap-6 sm:grid-cols-2">
-        <div>
-            <label for="date" class="label">
-                Verseny dátuma <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-            </label>
-            <input type="date" id="date" name="date" required
-                   value="<?= e($data['date'] ?? '') ?>"
-                   class="field<?= isset($errors['date']) ? ' field-error' : '' ?>"
-                   <?= isset($errors['date']) ? 'aria-describedby="date-error" aria-invalid="true"' : '' ?>>
-            <?php if (isset($errors['date'])): ?>
-                <p id="date-error" class="field-message" role="alert"><?= e($errors['date']) ?></p>
-            <?php endif; ?>
-        </div>
-
-        <div>
-            <label for="registrationDeadline" class="label">
-                Nevezési határidő <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-            </label>
-            <input type="datetime-local" id="registrationDeadline" name="registrationDeadline" required
-                   value="<?= e($data['registrationDeadline'] ?? '') ?>"
-                   class="field<?= isset($errors['registrationDeadline']) ? ' field-error' : '' ?>"
-                   <?= isset($errors['registrationDeadline']) ? 'aria-describedby="deadline-error" aria-invalid="true"' : 'aria-describedby="deadline-hint"' ?>>
-            <?php if (isset($errors['registrationDeadline'])): ?>
-                <p id="deadline-error" class="field-message" role="alert"><?= e($errors['registrationDeadline']) ?></p>
-            <?php else: ?>
-                <p id="deadline-hint" class="field-hint">Eddig lehet online nevezni.</p>
-            <?php endif; ?>
-        </div>
+    <!-- Verseny dátuma -->
+    <div class="sm:max-w-xs">
+        <label for="date" class="label">
+            Verseny dátuma <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+        </label>
+        <input type="date" id="date" name="date" required
+               value="<?= e($data['date'] ?? '') ?>"
+               class="field<?= isset($errors['date']) ? ' field-error' : '' ?>"
+               <?= isset($errors['date']) ? 'aria-describedby="date-error" aria-invalid="true"' : '' ?>>
+        <?php if (isset($errors['date'])): ?>
+            <p id="date-error" class="field-message" role="alert"><?= e($errors['date']) ?></p>
+        <?php endif; ?>
     </div>
+
+    <!--
+        Nevezési időablak: mikortól és meddig lehet nevezni.
+        A nyitódátum nem kötelező - üresen hagyva a nevezés a kiírástól
+        azonnal nyitott, ez a korábbi működés.
+    -->
+    <fieldset class="pt-2 border-t border-sand-200">
+        <legend class="text-sm font-semibold text-billiard-green-900 pt-4 pb-1">Nevezési időablak</legend>
+
+        <div class="grid gap-6 sm:grid-cols-2">
+            <div>
+                <label for="registrationOpensAt" class="label">Nevezés nyitása</label>
+                <input type="datetime-local" id="registrationOpensAt" name="registrationOpensAt"
+                       value="<?= e($data['registrationOpensAt'] ?? '') ?>"
+                       class="field<?= isset($errors['registrationOpensAt']) ? ' field-error' : '' ?>"
+                       <?= isset($errors['registrationOpensAt']) ? 'aria-describedby="opens-error" aria-invalid="true"' : 'aria-describedby="opens-hint"' ?>>
+                <?php if (isset($errors['registrationOpensAt'])): ?>
+                    <p id="opens-error" class="field-message" role="alert"><?= e($errors['registrationOpensAt']) ?></p>
+                <?php else: ?>
+                    <p id="opens-hint" class="field-hint">
+                        Ettől az időponttól lehet nevezni. Üresen hagyva a nevezés azonnal nyitott,
+                        a verseny addig is látszik a listában.
+                    </p>
+                <?php endif; ?>
+            </div>
+
+            <div>
+                <label for="registrationDeadline" class="label">
+                    Nevezési határidő <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+                </label>
+                <input type="datetime-local" id="registrationDeadline" name="registrationDeadline" required
+                       value="<?= e($data['registrationDeadline'] ?? '') ?>"
+                       class="field<?= isset($errors['registrationDeadline']) ? ' field-error' : '' ?>"
+                       <?= isset($errors['registrationDeadline']) ? 'aria-describedby="deadline-error" aria-invalid="true"' : 'aria-describedby="deadline-hint"' ?>>
+                <?php if (isset($errors['registrationDeadline'])): ?>
+                    <p id="deadline-error" class="field-message" role="alert"><?= e($errors['registrationDeadline']) ?></p>
+                <?php else: ?>
+                    <p id="deadline-hint" class="field-hint">Eddig lehet online nevezni.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </fieldset>
 
     <!-- Helyszín -->
     <div>

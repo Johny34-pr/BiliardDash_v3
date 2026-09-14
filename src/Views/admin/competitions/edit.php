@@ -6,7 +6,7 @@
  * A szerkesztés megőrzi a meglévő nevezéseket (Requirement 6.6).
  *
  * @var array $errors      Validációs hibák
- * @var array $data        Űrlap adatok (name, date, venue, registrationDeadline)
+ * @var array $data        Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
  * @var array $competition Verseny adatok (id, registrant_count)
  */
 $formAction = '/admin/versenyek/' . $competition['id'] . '/szerkeszt';

@@ -63,6 +63,35 @@ class Album
     }
 
     /**
+     * Album nevének módosítása.
+     */
+    public function updateName(string $id, string $name): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE albums SET name = :name WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':name' => $name,
+        ]);
+    }
+
+    /**
+     * Album törlése.
+     *
+     * A hozzá tartozó képrekordok az images.album_id idegen kulcs
+     * ON DELETE CASCADE szabálya miatt automatikusan törlődnek, a
+     * feltöltött fájlokat viszont a GalleryService takarítja el.
+     */
+    public function delete(string $id): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM albums WHERE id = :id');
+
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
      * Album képszámának növelése eggyel.
      */
     public function incrementImageCount(string $id): bool

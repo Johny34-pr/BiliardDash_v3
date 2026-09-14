@@ -64,6 +64,8 @@
             <?php else: ?>
                 <p class="field-hint">A publikálási dátum a szerkesztés után változatlan marad.</p>
             <?php endif; ?>
+
+            <?php require __DIR__ . '/../../partials/editor-help.php'; ?>
         </div>
 
         <!-- Műveletek -->

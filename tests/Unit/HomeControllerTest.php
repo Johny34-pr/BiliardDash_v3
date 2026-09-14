@@ -113,6 +113,11 @@ class HomeControllerTest extends TestCase
         $this->assertStringContainsString('2025. 03. 20.', $output);
     }
 
+    /**
+     * A főoldal címe a márkanévvel kezdődik és a fő szolgáltatásokat is
+     * megnevezi, mert ez a szöveg jelenik meg a keresőtalálat fejléceként.
+     * A korábbi "Főoldal" előtag nem hordozott információt.
+     */
     public function testIndexSetsCorrectPageTitle(): void
     {
         ob_start();
@@ -120,7 +125,33 @@ class HomeControllerTest extends TestCase
         $controller->index();
         $output = ob_get_clean();
 
-        $this->assertStringContainsString('<title>Főoldal - Magyar Biliárd</title>', $output);
+        $this->assertStringContainsString(
+            '<title>Magyar Biliárd - hírek, galéria és online versenynevezés</title>',
+            $output
+        );
+    }
+
+    /**
+     * A keresőoptimalizálás alapelemei minden oldalon jelen vannak:
+     * saját oldalleírás, kanonikus URL és közösségi megosztási adatok.
+     */
+    public function testIndexOutputsSeoMetaTags(): void
+    {
+        ob_start();
+        $controller = new HomeController();
+        $controller->index();
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('name="description"', $output);
+        $this->assertStringContainsString('rel="canonical"', $output);
+        $this->assertStringContainsString('property="og:title"', $output);
+        $this->assertStringContainsString('property="og:image"', $output);
+        $this->assertStringContainsString('name="twitter:card" content="summary_large_image"', $output);
+        $this->assertStringContainsString('name="robots" content="index, follow', $output);
+
+        // Ikonok: a favicon és a webmanifest bekötése
+        $this->assertStringContainsString('rel="icon"', $output);
+        $this->assertStringContainsString('/site.webmanifest', $output);
     }
 
     public function testIndexShowsErrorMessageOnDatabaseFailure(): void

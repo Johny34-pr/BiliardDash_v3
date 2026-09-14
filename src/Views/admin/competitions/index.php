@@ -46,6 +46,7 @@ $now = new DateTimeImmutable();
                         <th scope="col">Verseny</th>
                         <th scope="col">Dátum</th>
                         <th scope="col">Helyszín</th>
+                        <th scope="col">Nevezés nyitása</th>
                         <th scope="col">Nevezési határidő</th>
                         <th scope="col" class="text-center">Nevezők</th>
                         <th scope="col" class="text-right">Műveletek</th>
@@ -53,7 +54,15 @@ $now = new DateTimeImmutable();
                 </thead>
                 <tbody>
                     <?php foreach ($competitions as $competition): ?>
-                        <?php $isOpen = new DateTimeImmutable($competition['registration_deadline']) > $now; ?>
+                        <?php
+                        // Nyitódátum nélkül a nevezés a kiírástól nyitott
+                        $opensAt = !empty($competition['registration_opens_at'])
+                            ? new DateTimeImmutable($competition['registration_opens_at'])
+                            : null;
+                        $notYetOpen = $opensAt !== null && $opensAt > $now;
+                        $deadlinePassed = new DateTimeImmutable($competition['registration_deadline']) <= $now;
+                        $isOpen = !$notYetOpen && !$deadlinePassed;
+                        ?>
                         <tr>
                             <td>
                                 <span class="font-medium text-sand-900"><?= e($competition['name']) ?></span>
@@ -65,12 +74,25 @@ $now = new DateTimeImmutable();
                             </td>
                             <td><?= e($competition['venue']) ?></td>
                             <td class="whitespace-nowrap">
+                                <?php if ($opensAt !== null): ?>
+                                    <time datetime="<?= e($competition['registration_opens_at']) ?>">
+                                        <?= $opensAt->format('Y. m. d. H:i') ?>
+                                    </time>
+                                <?php else: ?>
+                                    <span class="text-sand-500">Azonnal</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="whitespace-nowrap">
                                 <time datetime="<?= e($competition['registration_deadline']) ?>">
                                     <?= date('Y. m. d. H:i', strtotime($competition['registration_deadline'])) ?>
                                 </time>
-                                <span class="badge <?= $isOpen ? 'badge-green' : 'badge-neutral' ?> ml-1.5">
-                                    <?= $isOpen ? 'Nyitott' : 'Lezárult' ?>
-                                </span>
+                                <?php if ($notYetOpen): ?>
+                                    <span class="badge badge-gold ml-1.5">Hamarosan</span>
+                                <?php else: ?>
+                                    <span class="badge <?= $isOpen ? 'badge-green' : 'badge-neutral' ?> ml-1.5">
+                                        <?= $isOpen ? 'Nyitott' : 'Lezárult' ?>
+                                    </span>
+                                <?php endif; ?>
                             </td>
                             <td class="text-center">
                                 <span class="badge badge-neutral tabular-nums">

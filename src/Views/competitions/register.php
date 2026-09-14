@@ -9,21 +9,28 @@
  *
  * A belépéssel rögzített nevezés a fiókban visszavonható a határidő lejártáig.
  *
- * @var array      $competition    Verseny adatai
- * @var array      $errors         Validációs hibák (mező => üzenet)
- * @var array      $data           Korábban megadott adatok (sticky form)
- * @var bool       $deadlinePassed Lejárt-e a határidő
- * @var bool       $duplicateError Dupla nevezés történt-e
- * @var bool       $success        Sikeres nevezés
- * @var string     $registerFor    'self' vagy 'other'
- * @var array|null $currentUser    A bejelentkezett felhasználó, vagy null
+ * @var array      $competition        Verseny adatai
+ * @var array      $errors             Validációs hibák (mező => üzenet)
+ * @var array      $data               Korábban megadott adatok (sticky form)
+ * @var bool       $deadlinePassed     Lejárt-e a határidő
+ * @var bool       $registrationOpened Megnyílt-e már a nevezés
+ * @var bool       $duplicateError     Dupla nevezés történt-e
+ * @var bool       $success            Sikeres nevezés
+ * @var string     $registerFor        'self' vagy 'other'
+ * @var array|null $currentUser        A bejelentkezett felhasználó, vagy null
  */
 
-$isDisabled = !empty($deadlinePassed);
+// A nevezés két okból lehet zárt: még nem nyílt meg, vagy már lejárt.
+// Az űrlap mindkét esetben tiltott, de más magyarázattal.
+$notYetOpen = !($registrationOpened ?? true);
+$isDisabled = !empty($deadlinePassed) || $notYetOpen;
 $isLoggedIn = $currentUser !== null;
 $forSelf = $registerFor === 'self';
 $date = new DateTimeImmutable($competition['date']);
 $deadline = new DateTimeImmutable($competition['registration_deadline']);
+$opensAt = !empty($competition['registration_opens_at'])
+    ? new DateTimeImmutable($competition['registration_opens_at'])
+    : null;
 
 /** Egységes osztálylista egy beviteli mezőhöz, hibaállapot szerint */
 $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' field-error' : '');
@@ -71,7 +78,27 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                 </div>
             <?php endif; ?>
 
-            <?php if ($isDisabled): ?>
+            <?php if ($notYetOpen): ?>
+                <div class="alert alert-info mb-6" role="status">
+                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="alert-title">A nevezés még nem nyílt meg</p>
+                        <p class="text-sm mt-0.5">
+                            <?php if ($opensAt !== null): ?>
+                                A nevezés
+                                <time datetime="<?= e($competition['registration_opens_at']) ?>" class="font-semibold">
+                                    <?= $opensAt->format('Y. m. d. H:i') ?>
+                                </time>
+                                időpontban nyílik meg. Térj vissza akkor, és add le a nevezésedet.
+                            <?php else: ?>
+                                Erre a versenyre egyelőre nem lehet nevezni.
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                </div>
+            <?php elseif ($isDisabled): ?>
                 <div class="alert alert-warning mb-6" role="alert">
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
@@ -205,7 +232,13 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                     <!-- Beküldés -->
                     <div class="pt-2">
                         <button type="submit" class="btn btn-primary w-full" <?= $isDisabled ? 'disabled' : '' ?>>
-                            <?= $isDisabled ? 'A nevezés lezárult' : 'Nevezés elküldése' ?>
+                            <?php if ($notYetOpen): ?>
+                                A nevezés még nem nyílt meg
+                            <?php elseif ($isDisabled): ?>
+                                A nevezés lezárult
+                            <?php else: ?>
+                                Nevezés elküldése
+                            <?php endif; ?>
                         </button>
                     </div>
                 </form>
@@ -256,13 +289,25 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                         <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500 mb-1">Helyszín</dt>
                         <dd class="text-sand-900 font-medium"><?= e($competition['venue']) ?></dd>
                     </div>
+                    <?php if ($opensAt !== null): ?>
+                        <div class="px-6 py-4">
+                            <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500 mb-1">Nevezés nyitása</dt>
+                            <dd class="text-sand-900 font-medium">
+                                <time datetime="<?= e($competition['registration_opens_at']) ?>">
+                                    <?= $opensAt->format('Y. m. d. H:i') ?>
+                                </time>
+                            </dd>
+                        </div>
+                    <?php endif; ?>
                     <div class="px-6 py-4">
                         <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500 mb-1">Nevezési határidő</dt>
                         <dd class="text-sand-900 font-medium">
                             <time datetime="<?= e($competition['registration_deadline']) ?>">
                                 <?= $deadline->format('Y. m. d. H:i') ?>
                             </time>
-                            <?php if ($isDisabled): ?>
+                            <?php if ($notYetOpen): ?>
+                                <span class="badge badge-gold ml-1.5">Hamarosan</span>
+                            <?php elseif ($isDisabled): ?>
                                 <span class="badge badge-neutral ml-1.5">Lezárult</span>
                             <?php else: ?>
                                 <span class="badge badge-green ml-1.5">Nyitott</span>

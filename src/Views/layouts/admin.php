@@ -11,6 +11,9 @@
 
 $current = currentUrl();
 
+// A szervezői felület nem való a keresőindexbe
+$noIndex = true;
+
 $adminNav = [
     ['url' => '/admin',            'label' => 'Áttekintés', 'exact' => true],
     ['url' => '/admin/hirek',      'label' => 'Hírek',      'exact' => false],

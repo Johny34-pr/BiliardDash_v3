@@ -197,6 +197,7 @@ abstract class TestCase extends PHPUnitTestCase
                 name TEXT NOT NULL,
                 date TEXT NOT NULL,
                 venue TEXT NOT NULL,
+                registration_opens_at TEXT DEFAULT NULL,
                 registration_deadline TEXT NOT NULL,
                 registrant_count INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime(\'now\')),

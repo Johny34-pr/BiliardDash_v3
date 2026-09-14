@@ -48,7 +48,7 @@ Közösségi weboldal a magyar biliárd közösség számára: hírek, fotógal�
 | Stílus | Tailwind CSS (CDN) |
 | Képkezelés | PHP GD Library |
 | E-mail | PHPMailer (SMTP) |
-| Rich text | TinyMCE (CDN) |
+| Rich text | TinyMCE 6 (CDN), képfeltöltéssel és belső hivatkozás-választóval |
 | Frontend JS | Vanilla JavaScript |
 | Tesztelés | PHPUnit 10 + Eris (property-based testing) + Mockery |
 | Webszerver | Apache + mod_rewrite |
@@ -112,6 +112,8 @@ APP_URL=http://localhost
 APP_DEBUG=false
 ADMIN_PASSWORD=valasz-egy-eros-jelszot
 
+TINYMCE_API_KEY=
+
 MAIL_HOST=smtp.mailtrap.io
 MAIL_PORT=587
 MAIL_USERNAME=
@@ -120,6 +122,10 @@ MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=info@magyarbilliard.hu
 MAIL_FROM_NAME="Magyar Biliárd"
 ```
+
+A `TINYMCE_API_KEY` a szerkesztő CDN kulcsa, a [tiny.cloud](https://www.tiny.cloud/) oldalon igényelhető. Üresen hagyva a szerkesztő működik, csak figyelmeztetést jelenít meg — ilyenkor az admin felület a szerkesztő alatt jelzi, mit kell beállítani.
+
+**A környezeti változók betöltése.** A `.env` beolvasását az `App\Core\Env` osztály végzi, amit a `public/index.php` hív meg legelőször. A betöltés idempotens, és a **már beállított értékeket soha nem írja felül** — így az Apache `SetEnv` és a `phpunit.xml` beállításai elsőbbséget kapnak a `.env` fájllal szemben. A konfigurációs fájlok (`app.php`, `database.php`, `mail.php`) is meghívják, tehát önmagukban is helyes értéket adnak, nem csak akkor, ha előtte véletlenül betöltődött egy másik konfiguráció.
 
 A `.env` fájlt UTF-8 kódolással mentsd, különben az ékezetes értékek hibásan jelennek meg. A fájl nem kerül verziókövetésbe, és a webszerver sem szolgálja ki.
 
@@ -255,27 +261,34 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 ├── public/                     → Web root
 │   ├── index.php               → Front controller
 │   ├── .htaccess               → Front controller rewrite + biztonsági fejlécek
-│   ├── assets/{css,js,images}/ → Statikus erőforrások
-│   └── uploads/albums/{id}/    → full/ (eredeti) és thumb/ (200x200px)
+│   ├── assets/css/app.css      → Design rendszer
+│   ├── assets/js/              → app.js, gallery.js, editor.js
+│   └── uploads/
+│       ├── .htaccess           → Szkriptfuttatás tiltása (alkönyvtárakra is)
+│       ├── albums/{id}/        → full/ (eredeti) és thumb/ (200x200px)
+│       └── media/{év}/{hónap}/ → Szerkesztőbe feltöltött kép és dokumentum
 ├── src/
 │   ├── Controllers/            → Home, News, Gallery, Competition, Auth,
-│   │                             Forum, Admin
+│   │                             Forum, Admin, AdminMedia
 │   ├── Models/                 → News, Album, Image, Competition, Registration,
 │   │                             User, Topic, Comment, CommentVote
 │   ├── Services/               → News, Gallery, Competition, Image, Email,
-│   │                             Validation, Auth, Topic, Comment
+│   │                             Validation, Auth, Topic, Comment,
+│   │                             Media, LinkTarget
 │   ├── Views/
 │   │   ├── layouts/            → main.php (publikus), admin.php
 │   │   ├── partials/           → head.php (design tokenek), header.php,
 │   │   │                         navigation.php, account-menu.php,
-│   │   │                         admin-mode-bar.php, footer.php, tinymce.php
+│   │   │                         admin-mode-bar.php, footer.php, tinymce.php,
+│   │   │                         editor-help.php
 │   │   ├── home|news|gallery|competitions/  → publikus nézetek
 │   │   ├── forum/              → index.php (topiklista), create.php, show.php
 │   │   ├── auth/               → login.php, register.php
 │   │   ├── account/            → index.php (saját nevezések)
 │   │   ├── admin/              → admin nézetek (news, gallery, competitions)
 │   │   └── errors/             → 404.php, 500.php
-│   └── Core/                   → Database, Router, Session, Validator, AppException, helpers
+│   └── Core/                   → Env, Database, Router, Session, Validator,
+│                                 AppException, helpers
 ├── config/                     → database.php, app.php, mail.php, routes.php
 ├── database/migrations/         → 001_create_tables.sql
 └── tests/{Unit,Properties,Integration}/
@@ -367,6 +380,33 @@ A `topics.comment_count` szintén gyorsított összesítés, amit a hozzászól�
 **Útvonalak.** Publikus: `GET /forum` (topiklista), `GET|POST /forum/uj` (topik nyitása), `GET /forum/{id}` (topik), `POST /forum/{id}/hozzaszolas`, `POST /forum/hozzaszolas/{id}/ertekeles`. Admin: `/admin/forum` (topikok) és `/admin/forum/hozzaszolasok` (hozzászólások) a hozzájuk tartozó műveletekkel.
 
 > A `/forum/uj` útvonal szándékosan a `/forum/{id}` minta **előtt** van regisztrálva, különben a router az „uj" szót topik azonosítóként értelmezné. Ugyanez az oka, hogy a szavazás útvonala `/forum/hozzaszolas/{id}/ertekeles`.
+
+## Blogszerkesztő
+
+A hírszerkesztő TinyMCE 6 alapú. A beállítás a `public/assets/js/editor.js` fájlban van, a kiszolgálóoldali adatokat (végpontok, méretkorlátok) a `partials/tinymce.php` adja át a szerkesztő `data-*` attribútumain — így a JavaScript gyorsítótárazható marad, a korlátok pedig PHP oldalon, egy helyen módosíthatók.
+
+A CDN kulcs a `.env` `TINYMCE_API_KEY` beállításából jön, nem a forráskódból.
+
+**Kép beszúrása.** Húzd-és-vidd, vágólapról beillesztés és fájlválasztó is működik; a kép azonnal feltöltődik (`automatic_uploads`). Formátum: JPEG, PNG, GIF, WebP, legfeljebb 10 MB.
+
+**Dokumentum csatolása.** A *Csatolmány* gomb PDF, DOC(X), XLS(X), ODT, ODS, TXT és CSV fájlt tölt fel (max. 20 MB), és kiemelt, letölthető hivatkozásként szúrja be (`a.attachment`). A publikus oldalon önálló blokként jelenik meg, hogy ne olvadjon bele a bekezdésbe.
+
+**Médiakönyvtár.** A korábbi feltöltések listából újra beszúrhatók, így nem kell ugyanazt kétszer feltölteni.
+
+**Belső hivatkozás-választó.** A hivatkozás párbeszédpanel legördülőjét a kiszolgáló tölti fel (`link_list`), a `LinkTargetService` állítja össze: aloldalak, minden verseny **nevezési űrlapja** és nevezői listája, hírek, galéria albumok és fórum topikok. Így nem kell URL-t kézzel beírni, és nem keletkezik törött hivatkozás. Az elrejtett fórum topikok nem jelennek meg a listában.
+
+### Feltöltés biztonsága
+
+A `MediaService` négy egymást erősítő szabályt alkalmaz:
+
+1. **A típus a tartalomból derül ki** (`finfo`), nem a kliens által küldött MIME-ből, ami hamisítható.
+2. **A fájlnév mindig újonnan generált UUID**, a kiterjesztés a felismert típushoz tartozó engedélyezett érték. Így a kettős kiterjesztés (`kep.php.jpg`) nem használható szkript becsempészésére.
+3. **Képeknél `getimagesize()` ellenőrzés** is fut, hogy a fájl valóban kép legyen.
+4. **Az SVG szándékosan nincs az engedélyezett formátumok között**, mert szkriptet tartalmazhat. Tömörített állomány (zip) sem, mert a tartalma feltöltéskor nem ellenőrizhető.
+
+A tárolás `public/uploads/media/{év}/{hónap}/` alatt történik, ahol a `public/uploads/.htaccess` (az alkönyvtárakra is érvényes) letiltja a szkriptfuttatást. Minden végpont szervezői hozzáférést igényel, és hiba esetén JSON választ ad a megfelelő állapotkóddal — nem HTML átirányítást, amit a szerkesztő nem tudna értelmezni.
+
+**Végpontok:** `POST /admin/media/kep`, `POST /admin/media/dokumentum`, `GET /admin/media/lista`, `GET /admin/media/hivatkozasok`.
 
 ## Megjelenés és design rendszer
 

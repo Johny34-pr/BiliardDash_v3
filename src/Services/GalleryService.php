@@ -62,6 +62,118 @@ class GalleryService
     }
 
     /**
+     * Album átnevezése.
+     *
+     * A név érvényességét (kötelező, max. 100 karakter) a hívó
+     * ValidationService::validateAlbum() ellenőrzi.
+     *
+     * @return array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string}
+     * @throws RuntimeException Ha az album nem létezik.
+     */
+    public function renameAlbum(string $albumId, string $name): array
+    {
+        if ($this->albumModel->findById($albumId) === null) {
+            throw new RuntimeException('Az album nem található.');
+        }
+
+        $this->albumModel->updateName($albumId, $name);
+
+        $album = $this->albumModel->findById($albumId);
+
+        if ($album === null) {
+            throw new RuntimeException('Album átnevezés sikertelen.');
+        }
+
+        return $album;
+    }
+
+    /**
+     * Album törlése a benne lévő képekkel együtt.
+     *
+     * A képrekordokat az idegen kulcs kaszkádja is törölné, a feltöltött
+     * fájlokat viszont nem, ezért azokat itt takarítjuk el - még az album
+     * rekord törlése előtt, amíg az útvonalak kiolvashatók.
+     *
+     * Lépések:
+     * 1. Album keresése (nem létező albumra hiba)
+     * 2. Képfájlok törlése (full + thumb)
+     * 3. Az album feltöltési könyvtárának eltávolítása
+     * 4. Album rekord törlése (a képrekordok kaszkádban követik)
+     *
+     * @return string A törölt album neve, visszajelzéshez
+     * @throws RuntimeException Ha az album nem található.
+     */
+    public function deleteAlbum(string $albumId): string
+    {
+        $album = $this->albumModel->findById($albumId);
+
+        if ($album === null) {
+            throw new RuntimeException('Az album nem található.');
+        }
+
+        $publicDir = dirname(__DIR__, 2) . '/public/';
+
+        // Képfájlok törlése egyenként, az adatbázisban tárolt útvonalak alapján
+        foreach ($this->imageModel->findByAlbumId($albumId) as $image) {
+            $this->imageService->deleteImageFiles(
+                $publicDir . $image['full_path'],
+                $publicDir . $image['thumbnail_path']
+            );
+        }
+
+        // Az album könyvtárának eltávolítása (full/, thumb/ és maga a könyvtár)
+        $this->removeAlbumDirectory($albumId);
+
+        // Album rekord törlése - a képrekordok FK cascade révén törlődnek
+        $this->albumModel->delete($albumId);
+
+        return $album['name'];
+    }
+
+    /**
+     * Egy album feltöltési könyvtárának eltávolítása.
+     *
+     * Csak a public/uploads/albums/ alatti könyvtárat törli: a realpath
+     * ellenőrzés megakadályozza, hogy egy manipulált azonosító a könyvtáron
+     * kívülre mutasson. Nem rekurzív a végtelenségig, mert a szerkezet
+     * ismert és fix: {album}/full és {album}/thumb.
+     */
+    private function removeAlbumDirectory(string $albumId): void
+    {
+        $albumsRoot = realpath(dirname(__DIR__, 2) . '/public/uploads/albums');
+
+        if ($albumsRoot === false) {
+            return;
+        }
+
+        $albumDir = realpath($albumsRoot . DIRECTORY_SEPARATOR . $albumId);
+
+        // Nincs könyvtár (üres album), vagy kilépne az albumok gyökeréből
+        if ($albumDir === false || !str_starts_with($albumDir, $albumsRoot . DIRECTORY_SEPARATOR)) {
+            return;
+        }
+
+        foreach (['full', 'thumb'] as $subDir) {
+            $path = $albumDir . DIRECTORY_SEPARATOR . $subDir;
+
+            if (!is_dir($path)) {
+                continue;
+            }
+
+            // Maradék fájlok (pl. sikertelen feltöltés töredékei) eltávolítása
+            foreach (glob($path . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+                if (is_file($file)) {
+                    @unlink($file);
+                }
+            }
+
+            @rmdir($path);
+        }
+
+        @rmdir($albumDir);
+    }
+
+    /**
      * Kép feltöltése egy albumba.
      *
      * Lépések:
@@ -182,5 +294,18 @@ class GalleryService
 
         // Album image_count csökkentése
         $this->albumModel->decrementImageCount($image['album_id']);
+
+        // Ha a borítókép tűnt el, új borítót választunk a maradék képekből.
+        // Nélküle az albums.cover_image_id egy már nem létező képre mutatna,
+        // és a galéria listája helyőrzőt jelenítene meg a fotó helyett.
+        $album = $this->albumModel->findById($image['album_id']);
+
+        if ($album !== null && $album['cover_image_id'] === $imageId) {
+            $remaining = $this->imageModel->findByAlbumId($image['album_id']);
+            $this->albumModel->updateCoverImageId(
+                $image['album_id'],
+                $remaining[0]['id'] ?? null
+            );
+        }
     }
 }

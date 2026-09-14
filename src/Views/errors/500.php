@@ -8,6 +8,9 @@
  * @var \Throwable|null $e
  */
 $pageTitle = '500 - Szerverhiba | Magyar Biliárd';
+
+// A hibaoldal nem tartalom: nem kerülhet a keresőindexbe
+$noIndex = true;
 ?>
 <!DOCTYPE html>
 <html lang="hu">

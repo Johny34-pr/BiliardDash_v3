@@ -52,6 +52,8 @@
             <?php else: ?>
                 <p class="field-hint">Az összefoglaló automatikusan a tartalom első 200 karakteréből készül.</p>
             <?php endif; ?>
+
+            <?php require __DIR__ . '/../../partials/editor-help.php'; ?>
         </div>
 
         <!-- Műveletek -->

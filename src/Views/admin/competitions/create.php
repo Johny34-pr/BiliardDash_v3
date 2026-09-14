@@ -5,7 +5,7 @@
  * A mezőket a közös _form.php részlet rendereli.
  *
  * @var array $errors Validációs hibák
- * @var array $data   Űrlap adatok (name, date, venue, registrationDeadline)
+ * @var array $data   Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
  */
 $formAction = '/admin/versenyek/uj';
 $submitLabel = 'Verseny létrehozása';

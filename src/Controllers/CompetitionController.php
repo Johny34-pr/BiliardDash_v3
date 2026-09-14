@@ -29,7 +29,9 @@ class CompetitionController
     public function index(): void
     {
         $competitions = $this->competitionService->getOpenCompetitions();
-        $pageTitle = 'Nevezés - Magyar Biliárd';
+        $pageTitle = 'Versenynevezés - Magyar Biliárd';
+        $metaDescription = 'Nyitott biliárdversenyek és online nevezés. '
+            . 'Nézd meg a versenyek dátumát, helyszínét és a nevezési határidőt.';
 
         // Render view within layout
         ob_start();
@@ -55,8 +57,16 @@ class CompetitionController
         }
 
         $registrants = $this->competitionService->getPublicRegistrants($versenyId);
-        $deadlinePassed = $this->isDeadlinePassed($competition);
+        $deadlinePassed = $this->competitionService->isDeadlinePassed($competition);
+        $registrationOpened = $this->competitionService->hasRegistrationOpened($competition);
         $pageTitle = 'Nevezők: ' . $competition['name'] . ' - Magyar Biliárd';
+        $metaDescription = sprintf(
+            'A(z) %s nevezői listája. %d nevező, a verseny %s, helyszín: %s.',
+            $competition['name'],
+            count($registrants),
+            date('Y. m. d.', strtotime($competition['date'])),
+            $competition['venue']
+        );
 
         ob_start();
         require __DIR__ . '/../Views/competitions/registrants.php';
@@ -130,8 +140,9 @@ class CompetitionController
             'success' => false,
         ];
 
-        // Határidő ellenőrzés - a nézet a lejárt állapotot maga jelzi
-        if ($this->isDeadlinePassed($competition)) {
+        // Nevezési időablak ellenőrzése - a lejárt és a még meg sem nyílt
+        // állapotot is a nézet jelzi, ezért itt csak megszakítjuk a mentést
+        if (!$this->competitionService->isRegistrationOpen($competition)) {
             $this->renderForm($competition, $state);
             return;
         }
@@ -170,13 +181,12 @@ class CompetitionController
     // Segédmetódusok
     // =====================================================================
 
-    private function isDeadlinePassed(array $competition): bool
-    {
-        return new \DateTime($competition['registration_deadline']) < new \DateTime();
-    }
-
     /**
      * Nevezési űrlap renderelése a fő layoutban.
+     *
+     * A nevezés két okból lehet zárt, és a kettő más üzenetet kíván:
+     * a határidő lejárt ($deadlinePassed), vagy még nem nyílt meg
+     * ($registrationOpened === false).
      *
      * @param array{errors:array, data:array, registerFor:string, duplicateError:bool, success:bool} $state
      */
@@ -187,10 +197,37 @@ class CompetitionController
         $registerFor = $state['registerFor'];
         $duplicateError = $state['duplicateError'];
         $success = $state['success'];
-        $deadlinePassed = $this->isDeadlinePassed($competition);
+        $deadlinePassed = $this->competitionService->isDeadlinePassed($competition);
+        $registrationOpened = $this->competitionService->hasRegistrationOpened($competition);
         $currentUser = Session::user();
 
         $pageTitle = 'Nevezés: ' . $competition['name'] . ' - Magyar Biliárd';
+        $metaDescription = sprintf(
+            'Online nevezés a(z) %s versenyre. Időpont: %s, helyszín: %s. Nevezési határidő: %s.',
+            $competition['name'],
+            date('Y. m. d.', strtotime($competition['date'])),
+            $competition['venue'],
+            date('Y. m. d. H:i', strtotime($competition['registration_deadline']))
+        );
+
+        // Strukturált adat: a verseny sportesemény, dátummal és helyszínnel
+        $structuredData = [
+            '@context' => 'https://schema.org',
+            '@type' => 'SportsEvent',
+            'name' => $competition['name'],
+            'startDate' => date('Y-m-d', strtotime($competition['date'])),
+            'eventStatus' => 'https://schema.org/EventScheduled',
+            'location' => [
+                '@type' => 'Place',
+                'name' => $competition['venue'],
+            ],
+            'url' => siteUrl('/nevezes/' . $competition['id']),
+            'organizer' => [
+                '@type' => 'Organization',
+                'name' => 'Magyar Biliárd',
+                'url' => siteUrl('/'),
+            ],
+        ];
 
         ob_start();
         require __DIR__ . '/../Views/competitions/register.php';

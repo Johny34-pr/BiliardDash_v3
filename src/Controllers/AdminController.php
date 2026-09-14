@@ -279,6 +279,8 @@ class AdminController
         }
 
         $errors = Session::getFlash('album_errors') ?: [];
+        // Átnevezési hibák albumonként: [albumId => hibaüzenet]
+        $renameErrors = Session::getFlash('rename_errors') ?: [];
         $pageTitle = 'Galéria kezelése - Admin';
 
         ob_start();
@@ -315,6 +317,55 @@ class AdminController
     }
 
     /**
+     * Album átnevezése
+     *
+     * A hibát az albumhoz kötve flasheljük (album_errors[albumId]), így a
+     * lista több album közül is a megfelelő űrlapnál jelzi a problémát.
+     */
+    public function albumUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $data = ['name' => $_POST['name'] ?? ''];
+        $validator = $this->validationService->validateAlbum($data);
+
+        if (!$validator->isValid()) {
+            Session::flash('rename_errors', [$id => $validator->getErrors()['name'] ?? 'Érvénytelen album név.']);
+            Session::flash('error', $validator->getErrors()['name'] ?? 'Érvénytelen album név.');
+            redirect('/admin/galeria');
+            return;
+        }
+
+        try {
+            $this->galleryService->renameAlbum($id, trim($data['name']));
+            Session::flash('success', 'Album sikeresen átnevezve!');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Album átnevezés hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt az album átnevezése során.');
+        }
+
+        redirect('/admin/galeria');
+    }
+
+    /**
+     * Album törlése a benne lévő képekkel együtt
+     */
+    public function albumDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $name = $this->galleryService->deleteAlbum($id);
+            Session::flash('success', 'A(z) "' . $name . '" album és a benne lévő képek törölve!');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Album törlés hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt az album törlése során.');
+        }
+
+        redirect('/admin/galeria');
+    }
+
+    /**
      * Képfeltöltő űrlap megjelenítése
      */
     public function imageUploadForm(string $id): void
@@ -332,7 +383,8 @@ class AdminController
         }
 
         $errors = Session::getFlash('upload_errors') ?: [];
-        $pageTitle = 'Kép feltöltés: ' . e($album['name']) . ' - Admin';
+        // A címet nyersen adjuk át: az escape-elés a head partial dolga
+        $pageTitle = 'Kép feltöltés: ' . $album['name'] . ' - Admin';
 
         ob_start();
         require __DIR__ . '/../Views/admin/gallery/upload.php';
@@ -423,7 +475,13 @@ class AdminController
         $this->requireAdmin();
 
         $errors = [];
-        $data = ['name' => '', 'date' => '', 'venue' => '', 'registrationDeadline' => ''];
+        $data = [
+            'name' => '',
+            'date' => '',
+            'venue' => '',
+            'registrationOpensAt' => '',
+            'registrationDeadline' => '',
+        ];
         $pageTitle = 'Új verseny - Admin';
 
         ob_start();
@@ -444,6 +502,8 @@ class AdminController
             'name' => trim($_POST['name'] ?? ''),
             'date' => trim($_POST['date'] ?? ''),
             'venue' => trim($_POST['venue'] ?? ''),
+            // Üresen hagyható: ilyenkor a nevezés azonnal nyitott
+            'registrationOpensAt' => trim($_POST['registrationOpensAt'] ?? ''),
             'registrationDeadline' => trim($_POST['registrationDeadline'] ?? ''),
         ];
 
@@ -486,6 +546,10 @@ class AdminController
             'name' => $competition['name'],
             'date' => $competition['date'],
             'venue' => $competition['venue'],
+            // A nyitódátum elhagyható, ezért csak akkor töltjük elő, ha van
+            'registrationOpensAt' => $competition['registration_opens_at'] !== null
+                ? date('Y-m-d\TH:i', strtotime($competition['registration_opens_at']))
+                : '',
             'registrationDeadline' => date('Y-m-d\TH:i', strtotime($competition['registration_deadline'])),
         ];
         $pageTitle = 'Verseny szerkesztése - Admin';
@@ -516,6 +580,8 @@ class AdminController
             'name' => trim($_POST['name'] ?? ''),
             'date' => trim($_POST['date'] ?? ''),
             'venue' => trim($_POST['venue'] ?? ''),
+            // Üresen hagyható: ilyenkor a nevezés azonnal nyitott
+            'registrationOpensAt' => trim($_POST['registrationOpensAt'] ?? ''),
             'registrationDeadline' => trim($_POST['registrationDeadline'] ?? ''),
         ];
 

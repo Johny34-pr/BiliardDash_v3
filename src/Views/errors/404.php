@@ -8,6 +8,9 @@
  * @var \App\Core\AppException|null $e
  */
 $pageTitle = '404 - Az oldal nem található | Magyar Biliárd';
+
+// A hibaoldal nem tartalom: nem kerülhet a keresőindexbe
+$noIndex = true;
 ?>
 <!DOCTYPE html>
 <html lang="hu">
