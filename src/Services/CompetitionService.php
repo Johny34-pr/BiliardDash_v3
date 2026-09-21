@@ -49,6 +49,14 @@ class CompetitionService
      *
      * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int}|null
      */
+    /**
+     * A meghirdetett versenyek száma (az áttekintő statisztikához).
+     */
+    public function countOpenCompetitions(): int
+    {
+        return $this->competitionModel->countOpen();
+    }
+
     public function getCompetitionById(string $id): ?array
     {
         return $this->competitionModel->findById($id);

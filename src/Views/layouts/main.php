@@ -1,6 +1,6 @@
 <?php
 /**
- * Fő layout - Magyar Biliárd Weboldal
+ * Fő layout - Okányi Biliárd Klub weboldal
  *
  * A navigáció a fejléc partial része, ezért itt már nem kerül külön betöltésre.
  *
@@ -52,6 +52,7 @@
 
     <?php require __DIR__ . '/../partials/footer.php'; ?>
 
-    <script src="/assets/js/app.js"></script>
+    <!-- defer: a szkript nem tartja fel a megjelenítést, a DOM elkészülte után fut -->
+    <script src="<?= e(asset('js/app.js')) ?>" defer></script>
 </body>
 </html>

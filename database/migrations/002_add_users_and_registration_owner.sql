@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Felhasználói fiókok
+-- Okányi Biliárd Klub weboldal - Felhasználói fiókok
 -- Migráció: 002_add_users_and_registration_owner.sql
 --
 -- Leírás:

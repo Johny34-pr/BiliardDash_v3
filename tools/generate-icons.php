@@ -3,12 +3,16 @@
 declare(strict_types=1);
 
 /**
- * Magyar Biliárd - ikongenerátor
+ * Okányi Biliárd Klub - ikongenerátor
  * =============================================================================
  *
- * A public/favicon.svg alapján előállítja a raszteres ikonokat és a
- * közösségi megosztás előnézeti képét. A böngészők és a közösségi
- * platformok nem mind kezelik az SVG-t, ezért ezek a fájlok is kellenek.
+ * A public/assets/images/logo.png (a klub címere) alapján előállítja az összes
+ * ikonméretet és a közösségi megosztás előnézeti képét. Egyetlen forrásfájl
+ * van, így ha a logó cserélődik, elég azt felülírni és ezt a szkriptet újra
+ * lefuttatni.
+ *
+ * A logó ugyanebből a fájlból kerül a fejlécbe és a láblécbe is
+ * (src/Views/partials/brand-mark.php), tehát egyetlen kép szolgál mindenre.
  *
  * Futtatás a projekt gyökeréből:
  *     php tools/generate-icons.php
@@ -20,13 +24,19 @@ declare(strict_types=1);
  *     public/icon-512.png                  512 px, webmanifest
  *     public/assets/images/og-default.png  1200x630, közösségi megosztás
  *
+ * Miért világos háttér az ikonokon
+ * --------------------------------
+ * A címer túlnyomóan kék, arany kerettel. Sötétzöld alapon a két sötét szín
+ * összemosódna, és 16 pixelen felismerhetetlen lenne. A törtfehér (sand-50)
+ * háttér minden méretben elválasztja a címert a böngésző fülétől, és egyezik
+ * a webmanifest background_color értékével.
+ *
  * Az élsimítást túlminta-vétel adja: a rajz a célméret négyszeresén készül,
- * majd arányosan lekicsinyítjük. A GD nem tud SVG-t raszterezni, ezért az
- * alakzatok itt is meg vannak rajzolva - a favicon.svg-vel egyező arányokkal.
+ * majd arányosan lekicsinyítjük.
  */
 
 // -----------------------------------------------------------------------------
-// Márkaszínek (a public/assets/css/app.css design tokenjeivel egyezően)
+// Márkaszínek (a tools/css/tokens.php design tokenjeivel egyezően)
 // -----------------------------------------------------------------------------
 const GREEN_900 = [0x0c, 0x2f, 0x22];
 const GREEN_950 = [0x06, 0x1a, 0x13];
@@ -37,7 +47,12 @@ const SAND_50   = [0xfb, 0xfa, 0xf8];
 /** Túlminta-vételi arány az élsimításhoz */
 const SUPERSAMPLE = 4;
 
-$publicDir = dirname(__DIR__) . '/public';
+/** A címer mekkora részét foglalja el a vászonnak (a maradék a levegő) */
+const LOGO_FILL = 0.80;
+
+$rootDir = dirname(__DIR__);
+$publicDir = $rootDir . '/public';
+$logoPath = $publicDir . '/assets/images/logo.png';
 
 // -----------------------------------------------------------------------------
 // Segédfüggvények
@@ -92,91 +107,133 @@ function filledRoundedRect(\GdImage $image, int $x, int $y, int $width, int $hei
 }
 
 /**
- * Vízszintes sáv körbe vágva - a golyó arany csíkja.
+ * A logó betöltése és az átlátszó szegély levágása.
  *
- * Soronként kiszámoljuk a kör vízszintes kiterjedését, így a sáv pontosan
- * a golyó körvonalánál ér véget, külön maszkolás nélkül.
+ * A vágás nélkül a forrásfájl körüli üres sáv is beleszámítana a méretezésbe,
+ * és a címer a vártnál kisebben, esetleg középről elcsúszva jelenne meg. Így
+ * viszont a tényleges rajz határai adják a méretet, bármilyen logóval.
+ *
+ * A képet statikusan tároljuk: minden ikonmérethez ugyanez a forrás kell.
  */
-function stripeClippedToCircle(
-    \GdImage $image,
-    float $cx,
-    float $cy,
-    float $radius,
-    float $bandTop,
-    float $bandBottom,
-    int $color
-): void {
-    $from = (int) round(max($bandTop, $cy - $radius));
-    $to = (int) round(min($bandBottom, $cy + $radius));
+function loadLogo(string $path): \GdImage
+{
+    static $trimmed = null;
 
-    for ($y = $from; $y <= $to; $y++) {
-        // A pixel közepét vizsgáljuk, hogy a szél ne csúszjon el
-        $dy = ($y + 0.5) - $cy;
-        $inside = $radius * $radius - $dy * $dy;
-
-        if ($inside <= 0) {
-            continue;
-        }
-
-        $dx = sqrt($inside);
-        imageline($image, (int) round($cx - $dx), $y, (int) round($cx + $dx) - 1, $y, $color);
+    if ($trimmed instanceof \GdImage) {
+        return $trimmed;
     }
+
+    $source = @imagecreatefrompng($path);
+
+    if ($source === false) {
+        fwrite(STDERR, 'Hiba: nem sikerült beolvasni a logót: ' . $path . "\n");
+        exit(1);
+    }
+
+    imagealphablending($source, false);
+    imagesavealpha($source, true);
+
+    $width = imagesx($source);
+    $height = imagesy($source);
+
+    // Az átlátszatlan képpontok befoglaló téglalapja
+    $minX = $width;
+    $minY = $height;
+    $maxX = -1;
+    $maxY = -1;
+
+    for ($y = 0; $y < $height; $y++) {
+        for ($x = 0; $x < $width; $x++) {
+            // A teljesen átlátszó (127) és a szinte átlátszó pontok nem
+            // számítanak: azok a tömörítés maradványai, nem a rajz része
+            $alpha = (imagecolorat($source, $x, $y) >> 24) & 0x7F;
+
+            if ($alpha > 120) {
+                continue;
+            }
+
+            $minX = min($minX, $x);
+            $minY = min($minY, $y);
+            $maxX = max($maxX, $x);
+            $maxY = max($maxY, $y);
+        }
+    }
+
+    if ($maxX < 0) {
+        fwrite(STDERR, "Hiba: a logó teljesen átlátszó.\n");
+        exit(1);
+    }
+
+    $cropWidth = $maxX - $minX + 1;
+    $cropHeight = $maxY - $minY + 1;
+
+    $trimmed = createCanvas($cropWidth, $cropHeight);
+    imagealphablending($trimmed, false);
+    imagecopy($trimmed, $source, 0, 0, $minX, $minY, $cropWidth, $cropHeight);
+    imagealphablending($trimmed, true);
+    imagedestroy($source);
+
+    return $trimmed;
 }
 
 /**
- * A sávos biliárdgolyó ikon megrajzolása négyzetes vászonra.
+ * A címer arányos beillesztése egy négyzetes vászon közepére.
  *
- * Az arányok a favicon.svg 64-es rácsához igazodnak:
- *   lekerekítés 14/64, golyó sugara 19/64, sáv 20..44/64, számmező 8/64.
+ * Az arányt megtartjuk: a hosszabbik oldal tölti ki a rendelkezésre álló
+ * területet, a rövidebbik középre kerül. Így a logó soha nem nyúlik meg.
+ */
+function placeLogo(\GdImage $canvas, string $logoPath, int $size, float $fill): void
+{
+    $logo = loadLogo($logoPath);
+
+    $logoWidth = imagesx($logo);
+    $logoHeight = imagesy($logo);
+
+    $box = $size * $fill;
+    $scale = min($box / $logoWidth, $box / $logoHeight);
+
+    $targetWidth = max(1, (int) round($logoWidth * $scale));
+    $targetHeight = max(1, (int) round($logoHeight * $scale));
+
+    imagecopyresampled(
+        $canvas,
+        $logo,
+        (int) round(($size - $targetWidth) / 2),
+        (int) round(($size - $targetHeight) / 2),
+        0,
+        0,
+        $targetWidth,
+        $targetHeight,
+        $logoWidth,
+        $logoHeight
+    );
+}
+
+/**
+ * Egy ikonméret előállítása: háttér + a klub címere.
  *
  * @param string $background A háttér fajtája:
- *                           'rounded' - lekerekített zöld négyzet (favicon)
- *                           'square'  - teljes zöld négyzet (apple-touch-icon,
- *                                       a sarkokat az iOS maga vágja le)
- *                           'none'    - csak a golyó, átlátszó háttérrel
- *                                       (sötét alapra helyezéshez)
+ *                           'rounded' - lekerekített törtfehér négyzet
+ *                                       (favicon, webmanifest)
+ *                           'square'  - teljes törtfehér négyzet
+ *                                       (apple-touch-icon, a sarkokat az
+ *                                       iOS maga vágja le)
+ *                           'none'    - csak a címer, átlátszó háttérrel
  */
-function drawIcon(int $size, string $background = 'rounded'): \GdImage
+function drawIcon(int $size, string $logoPath, string $background = 'rounded'): \GdImage
 {
     $s = $size * SUPERSAMPLE;
     $canvas = createCanvas($s, $s);
 
-    $green = color($canvas, GREEN_900);
-    $gold = color($canvas, GOLD_400);
     $sand = color($canvas, SAND_50);
 
-    // Háttér
     if ($background === 'rounded') {
-        filledRoundedRect($canvas, 0, 0, $s, $s, (int) round($s * 14 / 64), $green);
+        filledRoundedRect($canvas, 0, 0, $s, $s, (int) round($s * 14 / 64), $sand);
     } elseif ($background === 'square') {
-        imagefilledrectangle($canvas, 0, 0, $s, $s, $green);
+        imagefilledrectangle($canvas, 0, 0, $s, $s, $sand);
     }
 
-    // Golyó teste
-    $center = $s / 2;
-    $ballRadius = $s * 19 / 64;
-    imagefilledellipse(
-        $canvas,
-        (int) round($center),
-        (int) round($center),
-        (int) round($ballRadius * 2),
-        (int) round($ballRadius * 2),
-        $sand
-    );
-
-    // Arany sáv a golyóra vágva
-    stripeClippedToCircle($canvas, $center, $center, $ballRadius, $s * 20 / 64, $s * 44 / 64, $gold);
-
-    // Számmező a sáv közepén
-    $innerRadius = $s * 8 / 64;
-    imagefilledellipse(
-        $canvas,
-        (int) round($center),
-        (int) round($center),
-        (int) round($innerRadius * 2),
-        (int) round($innerRadius * 2),
-        $sand
-    );
+    placeLogo($canvas, $logoPath, $s, LOGO_FILL);
 
     // Lekicsinyítés a célméretre - ez adja az élsimítást.
     // A célképen az alphablending kikapcsolva, hogy az alfa átmásolódjon.
@@ -263,11 +320,16 @@ function findFont(): ?string
  * Közösségi megosztás előnézeti képe (Open Graph / Twitter Card).
  *
  * 1200x630 az a méret, amelyet a Facebook és a Twitter is nagy kártyaként
- * jelenít meg. A kép sötétzöld alapon az ikont és a webhely nevét mutatja,
- * hogy a megosztott link a hírfolyamban felismerhető legyen.
+ * jelenít meg. A kép sötétzöld alapon a klub címerét és nevét mutatja, hogy
+ * a megosztott link a hírfolyamban felismerhető legyen.
  */
-function drawOgImage(string $siteName, string $tagline, int $width = 1200, int $height = 630): \GdImage
-{
+function drawOgImage(
+    string $logoPath,
+    string $siteName,
+    string $tagline,
+    int $width = 1200,
+    int $height = 630
+): \GdImage {
     $canvas = imagecreatetruecolor($width, $height);
     imagealphablending($canvas, true);
 
@@ -286,17 +348,17 @@ function drawOgImage(string $siteName, string $tagline, int $width = 1200, int $
     // Arany zárósáv alul - a fejléc jelzővonalának képi megfelelője
     imagefilledrectangle($canvas, 0, $height - 12, $width - 1, $height - 1, color($canvas, GOLD_400));
 
-    // Golyó a bal oldalon. Háttér nélkül rajzoljuk, mert a zöld keret
-    // beleolvadna a szintén zöld háttérbe, és csak zavaró élt adna.
-    $iconSize = 240;
-    $iconX = 92;
-    $iconY = (int) round(($height - $iconSize) / 2) - 10;
+    // A címer világos táblán, a bal oldalon. A tábla azért kell, mert a kék
+    // címer a sötétzöld háttéren beleolvadna a felületbe.
+    $panelSize = 260;
+    $panelX = 92;
+    $panelY = (int) round(($height - $panelSize) / 2) - 6;
 
-    $icon = drawIcon($iconSize, 'none');
-    imagecopy($canvas, $icon, $iconX, $iconY, 0, 0, $iconSize, $iconSize);
-    imagedestroy($icon);
+    $panel = drawIcon($panelSize, $logoPath, 'rounded');
+    imagecopy($canvas, $panel, $panelX, $panelY, 0, 0, $panelSize, $panelSize);
+    imagedestroy($panel);
 
-    // Szöveg az ikon mellett
+    // Szöveg a címer mellett
     $font = findFont();
 
     if ($font === null) {
@@ -304,10 +366,13 @@ function drawOgImage(string $siteName, string $tagline, int $width = 1200, int $
         return $canvas;
     }
 
-    $textX = $iconX + $iconSize + 52;
+    $textX = $panelX + $panelSize + 56;
 
-    imagettftext($canvas, 64, 0, $textX, $iconY + 122, color($canvas, SAND_50), $font, $siteName);
-    imagettftext($canvas, 27, 0, $textX, $iconY + 180, color($canvas, GOLD_300), $font, $tagline);
+    // A klubnév két sorban fér ki olvasható méretben: a "Okányi Biliárd"
+    // és a "Klub" külön sorba kerül, hogy ne kelljen apró betűre váltani.
+    imagettftext($canvas, 58, 0, $textX, $panelY + 104, color($canvas, SAND_50), $font, 'Okányi');
+    imagettftext($canvas, 58, 0, $textX, $panelY + 174, color($canvas, SAND_50), $font, 'Biliárd Klub');
+    imagettftext($canvas, 25, 0, $textX, $panelY + 230, color($canvas, GOLD_300), $font, $tagline);
 
     return $canvas;
 }
@@ -321,14 +386,22 @@ if (!extension_loaded('gd')) {
     exit(1);
 }
 
-echo "Ikonok generálása...\n";
+if (!is_file($logoPath)) {
+    fwrite(STDERR, "Hiba: nem található a logó: public/assets/images/logo.png\n");
+    exit(1);
+}
+
+echo "Ikonok generálása a public/assets/images/logo.png alapján...\n";
+
+$logo = loadLogo($logoPath);
+echo '  A címer hasznos területe: ' . imagesx($logo) . 'x' . imagesy($logo) . " px\n";
 
 // --- favicon.ico (16, 32, 48) ---
 $icoSizes = [16, 32, 48];
 $pngBySize = [];
 
 foreach ($icoSizes as $size) {
-    $icon = drawIcon($size);
+    $icon = drawIcon($size, $logoPath);
     $pngBySize[$size] = pngToString($icon);
     imagedestroy($icon);
 }
@@ -337,21 +410,21 @@ file_put_contents($publicDir . '/favicon.ico', buildIco($pngBySize));
 echo '  public/favicon.ico (' . implode(', ', $icoSizes) . " px)\n";
 
 // --- apple-touch-icon.png (180, teljes négyzet háttérrel) ---
-$apple = drawIcon(180, 'square');
+$apple = drawIcon(180, $logoPath, 'square');
 imagepng($apple, $publicDir . '/apple-touch-icon.png', 9);
 imagedestroy($apple);
 echo "  public/apple-touch-icon.png (180 px)\n";
 
 // --- webmanifest ikonok ---
 foreach ([192, 512] as $size) {
-    $icon = drawIcon($size);
+    $icon = drawIcon($size, $logoPath);
     imagepng($icon, $publicDir . '/icon-' . $size . '.png', 9);
     imagedestroy($icon);
     echo "  public/icon-{$size}.png ({$size} px)\n";
 }
 
 // --- közösségi megosztás előnézete ---
-$og = drawOgImage('Magyar Biliárd', 'Hírek · Galéria · Online versenynevezés');
+$og = drawOgImage($logoPath, 'Okányi Biliárd Klub', 'Hírek · Galéria · Online versenynevezés');
 imagepng($og, $publicDir . '/assets/images/og-default.png', 9);
 imagedestroy($og);
 echo "  public/assets/images/og-default.png (1200x630)\n";

@@ -1,5 +1,5 @@
 /**
- * Magyar Biliárd Weboldal - Általános JavaScript
+ * Okányi Biliárd Klub weboldal - Általános JavaScript
  * Hamburger menü kezelés, form validáció, törlés megerősítés
  */
 

@@ -1,5 +1,5 @@
 /**
- * Magyar Biliárd - Blogszerkesztő (TinyMCE)
+ * Okányi Biliárd Klub - Blogszerkesztő (TinyMCE)
  *
  * A beállítást a szerkesztő elem `data-*` attribútumaiból veszi, így a
  * végpontok és korlátok PHP oldalon, egy helyen módosíthatók.

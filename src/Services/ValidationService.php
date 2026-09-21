@@ -17,12 +17,57 @@ class ValidationService
         return $v;
     }
 
+    /**
+     * Szerkeszthető tartalmi oldal validálása.
+     *
+     * A meta leírás nem kötelező: üresen hagyva a PageService a tartalomból
+     * készít egyet. A 300 karakteres korlát az adatbázis oszlopmérete.
+     */
+    public function validatePage(array $data): Validator
+    {
+        $v = new Validator();
+        $v->required('title', $data['title'] ?? null, 'A cím megadása kötelező')
+          ->maxLength('title', $data['title'] ?? null, 200, 'A cím maximum 200 karakter lehet')
+          ->required('content', $data['content'] ?? null, 'A tartalom megadása kötelező')
+          ->maxLength('metaDescription', $data['metaDescription'] ?? null, 300,
+              'A leírás maximum 300 karakter lehet');
+
+        return $v;
+    }
+
     public function validateAlbum(array $data): Validator
     {
         $v = new Validator();
         $name = trim($data['name'] ?? '');
         $v->required('name', $name ?: null, 'Az album neve kötelező')
           ->maxLength('name', $name, 100, 'Az album neve maximum 100 karakter lehet');
+        return $v;
+    }
+
+    /**
+     * Album helyezett validálása.
+     *
+     * A helyezés 1 és 999 közötti egész szám. Az alsó korlát azért 1, mert
+     * nincs nulladik helyezett; a felső korlát csak az elírás ellen védi az
+     * adatbázist, nem valós versenyméret.
+     *
+     * A megjegyzés (pl. egyesület) nem kötelező.
+     */
+    public function validatePlacement(array $data): Validator
+    {
+        $v = new Validator();
+        $position = trim((string) ($data['position'] ?? ''));
+
+        $v->required('playerName', $data['playerName'] ?? null, 'A név megadása kötelező')
+          ->maxLength('playerName', $data['playerName'] ?? null, 100, 'A név maximum 100 karakter lehet')
+          ->required('position', $position ?: null, 'A helyezés megadása kötelező')
+          ->maxLength('note', $data['note'] ?? null, 150, 'A megjegyzés maximum 150 karakter lehet');
+
+        // Számformátum csak akkor vizsgálandó, ha egyáltalán van érték
+        if ($position !== '' && (!ctype_digit($position) || (int) $position < 1 || (int) $position > 999)) {
+            $v->addError('position', 'A helyezés 1 és 999 közötti szám legyen');
+        }
+
         return $v;
     }
 
@@ -90,12 +135,50 @@ class ValidationService
           ->maxLength('email', $data['email'] ?? null, 255, 'Az e-mail cím maximum 255 karakter lehet')
           ->required('phone', $data['phone'] ?? null, 'A telefonszám megadása kötelező')
           ->maxLength('phone', $data['phone'] ?? null, 50, 'A telefonszám maximum 50 karakter lehet')
+          ->required('city', $data['city'] ?? null, 'A település megadása kötelező')
+          ->maxLength('city', $data['city'] ?? null, 100, 'A település maximum 100 karakter lehet')
           ->required('password', $data['password'] ?? null, 'A jelszó megadása kötelező')
           ->minLength('password', $data['password'] ?? null, $minLength, "A jelszó legalább {$minLength} karakter legyen");
 
         // Jelszó megerősítés egyezése - csak ha van megadott jelszó
         if (!empty($data['password']) && ($data['passwordConfirm'] ?? '') !== $data['password']) {
             $v->addError('passwordConfirm', 'A két jelszó nem egyezik');
+        }
+
+        return $v;
+    }
+
+    /**
+     * Fiók módosítása szervezői felületen.
+     *
+     * A jelszó itt nem kötelező: üresen hagyva a meglévő marad érvényben.
+     * Ha meg van adva, ugyanaz a hosszkorlát él, mint regisztrációnál.
+     */
+    public function validateUserUpdate(array $data): Validator
+    {
+        $v = new Validator();
+        $minLength = AuthService::MIN_PASSWORD_LENGTH;
+
+        $v->required('name', $data['name'] ?? null, 'A név megadása kötelező')
+          ->maxLength('name', $data['name'] ?? null, 100, 'A név maximum 100 karakter lehet')
+          ->required('email', $data['email'] ?? null, 'Az e-mail cím megadása kötelező')
+          ->email('email', $data['email'] ?? null, 'Érvénytelen e-mail formátum')
+          ->maxLength('email', $data['email'] ?? null, 255, 'Az e-mail cím maximum 255 karakter lehet')
+          ->required('phone', $data['phone'] ?? null, 'A telefonszám megadása kötelező')
+          ->maxLength('phone', $data['phone'] ?? null, 50, 'A telefonszám maximum 50 karakter lehet')
+          ->required('city', $data['city'] ?? null, 'A település megadása kötelező')
+          ->maxLength('city', $data['city'] ?? null, 100, 'A település maximum 100 karakter lehet');
+
+        // Jelszó csak akkor vizsgálandó, ha a szervező meg is adott újat
+        $password = (string) ($data['password'] ?? '');
+
+        if ($password !== '') {
+            $v->minLength('password', $password, $minLength,
+                "A jelszó legalább {$minLength} karakter legyen");
+
+            if (($data['passwordConfirm'] ?? '') !== $password) {
+                $v->addError('passwordConfirm', 'A két jelszó nem egyezik');
+            }
         }
 
         return $v;

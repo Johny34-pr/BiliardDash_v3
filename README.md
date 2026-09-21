@@ -1,6 +1,6 @@
-# Magyar Biliárd Weboldal
+# Okányi Biliárd Klub weboldal
 
-Közösségi weboldal a magyar biliárd közösség számára: hírek, fotógaléria és online versenynevezés. Keretrendszer nélküli PHP MVC alkalmazás, amely bármely standard LAMP/WAMP környezetben futtatható.
+Az Okányi Biliárd Klub közösségi weboldala: hírek, fotógaléria és online versenynevezés. Keretrendszer nélküli PHP MVC alkalmazás, amely bármely standard LAMP/WAMP környezetben futtatható.
 
 ## Funkciók
 
@@ -45,7 +45,7 @@ Közösségi weboldal a magyar biliárd közösség számára: hírek, fotógal�
 | Backend | PHP 8.1+ (egyszerű MVC, keretrendszer nélkül) |
 | Adatbázis | MySQL 8.0+ |
 | DB hozzáférés | PDO prepared statements |
-| Stílus | Tailwind CSS (CDN) |
+| Stílus | Előre generált segédosztály-készlet (PHP generátor) |
 | Képkezelés | PHP GD Library |
 | E-mail | PHPMailer (SMTP) |
 | Rich text | TinyMCE 6 (CDN), képfeltöltéssel és belső hivatkozás-választóval |
@@ -53,7 +53,8 @@ Közösségi weboldal a magyar biliárd közösség számára: hírek, fotógal�
 | Tesztelés | PHPUnit 10 + Eris (property-based testing) + Mockery |
 | Webszerver | Apache + mod_rewrite |
 
-Nincs build lépés: a Tailwind és a TinyMCE CDN-ről töltődik.
+Nincs Node és nincs npm. A stíluslapot egy PHP szkript állítja elő
+(`php tools/build-css.php`), a TinyMCE pedig CDN-ről töltődik.
 
 ## Követelmények
 
@@ -64,24 +65,44 @@ Nincs build lépés: a Tailwind és a TinyMCE CDN-ről töltődik.
 
 ## Telepítés
 
-### 1. Függőségek telepítése
+### 1. Függőségek telepítése és a stíluslap előállítása
 
 ```bash
 composer install
+php tools/build-css.php
+php tools/generate-icons.php
 ```
+
+Mindkét generátor kimenete verziókövetett fájl, tehát friss klón után már kész
+van — a parancsokat csak akkor kell lefuttatni, ha módosítottál a bemeneten:
+
+- `tools/build-css.php` → `public/assets/css/tailwind.css`, ha sablont vagy
+  design tokent módosítottál
+- `tools/generate-icons.php` → ikonok és a megosztási kép, ha a logót
+  (`public/assets/images/logo.png`) cserélted
+
+Node és npm egyikhez sem kell, csak PHP a `gd` kiterjesztéssel. Részletek a
+[Megjelenés és design rendszer](#megjelenés-és-design-rendszer) szakaszban.
 
 ### 2. Adatbázis létrehozása és séma betöltése
 
 ```bash
 mysql -u root -e "CREATE DATABASE billiard CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/001_create_tables.sql
-mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/002_add_users_and_registration_owner.sql
-mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/003_create_comments.sql
-mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/004_add_comment_votes.sql
-mysql -u root --default-character-set=utf8mb4 billiard < database/migrations/005_add_forum_topics.sql
+php tools/migrate.php
 ```
 
-A migrációkat sorszám szerinti sorrendben kell futtatni:
+A `tools/migrate.php` sorszám szerint futtatja a `database/migrations/` alatti
+fájlokat, és a `schema_migrations` táblában nyilvántartja, mi futott már le —
+így egy meglévő adatbázison is biztonságosan újrafuttatható.
+
+```bash
+php tools/migrate.php --status              # mi futott le, mi van hátra
+php tools/migrate.php                       # a hátralévők alkalmazása
+php tools/migrate.php --baseline 006_...    # a megadott fájlig lefutottnak jelöl, futtatás nélkül
+```
+
+A `--baseline` arra kell, ha a séma már kézzel be van töltve: felveszi a
+nyilvántartásba a korábbi migrációkat, hogy ne próbálja újra alkalmazni őket.
 
 | Migráció | Tartalom |
 | --- | --- |
@@ -90,8 +111,15 @@ A migrációkat sorszám szerinti sorrendben kell futtatni:
 | `003` | Fórum hozzászólások |
 | `004` | Hozzászólások értékelése (fel/leértékelés) |
 | `005` | Fórum topikok; a meglévő hozzászólásokat egy alap topikba menti |
+| `006` | Nevezés nyitódátuma (`competitions.registration_opens_at`) |
+| `007` | Beállítások tábla és szerkeszthető tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelés) |
+| `008` | Galéria helyezettek (`album_placements`) |
+| `009` | Település a fiókokban és a „belépés megjegyzése" tokenek |
 
-XAMPP alatt Windows-on a MySQL kliens a `C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a migrációt a phpMyAdmin felületén is be lehet importálni.
+XAMPP alatt Windows-on a PHP a `C:\xampp\php\php.exe`, a MySQL kliens a
+`C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a
+migrációkat a phpMyAdmin felületén is be lehet importálni, sorszám szerinti
+sorrendben.
 
 ### 3. Környezeti változók beállítása
 
@@ -107,7 +135,7 @@ DB_NAME=billiard
 DB_USERNAME=root
 DB_PASSWORD=
 
-APP_NAME="Magyar Biliárd"
+APP_NAME="Okányi Biliárd Klub"
 APP_URL=http://localhost
 APP_DEBUG=false
 ADMIN_PASSWORD=valasz-egy-eros-jelszot
@@ -119,8 +147,8 @@ MAIL_PORT=587
 MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=info@magyarbilliard.hu
-MAIL_FROM_NAME="Magyar Biliárd"
+MAIL_FROM_ADDRESS=info@okanyibiliard.hu
+MAIL_FROM_NAME="Okányi Biliárd Klub"
 ```
 
 A `TINYMCE_API_KEY` a szerkesztő CDN kulcsa, a [tiny.cloud](https://www.tiny.cloud/) oldalon igényelhető. Üresen hagyva a szerkesztő működik, csak figyelmeztetést jelenít meg — ilyenkor az admin felület a szerkesztő alatt jelzi, mit kell beállítani.
@@ -410,11 +438,45 @@ A tárolás `public/uploads/media/{év}/{hónap}/` alatt történik, ahol a `pub
 
 ## Megjelenés és design rendszer
 
-A design tokenek egyetlen helyen, a `src/Views/partials/head.php` fájlban vannak definiálva Tailwind konfigurációként. Ide tartoznak a színskálák, a tipográfia, az árnyékok és a sarokkerekítések. Ezt a partialt a publikus layout, az admin layout és a hibaoldalak is betöltik, így nem fordulhat elő, hogy a paletta több helyen szétcsúszik.
+A design tokenek egyetlen helyen, a `tools/css/tokens.php` fájlban vannak definiálva. Ide tartoznak a színskálák, a tipográfia, az árnyékok és a sarokkerekítések. A stíluslapot ebből egy PHP szkript állítja elő, a nézeteket beolvasva:
+
+```bash
+php tools/build-css.php            # public/assets/css/tailwind.css előállítása
+php tools/build-css.php --check    # csak ellenőrzés, írás nélkül
+```
+
+A generátor három részből áll:
+
+| Fájl | Feladat |
+| --- | --- |
+| `tools/css/tokens.php` | színek, méretlépcsők, árnyékok, töréspontok |
+| `tools/css/UtilityResolver.php` | osztálynév → CSS deklarációk |
+| `resources/css/base.css` | alapréteg: normalizálás és a CSS változók |
+
+A szkript végigolvassa a `src/Views/` alatti sablonokat és a `public/assets/js/` szkripteket, és csak a tényleg használt osztályokhoz készít szabályt. Ha egy `class` attribútumban olyan nevet talál, amelyet nem tud feloldani, kiírja a nevét és a fájlt, majd 1-es kilépési kóddal áll le — így egy elgépelt osztálynév nem marad csendben stílus nélkül. Új segédosztály felvételéhez a `UtilityResolver.php` feloldóit kell bővíteni.
+
+Nincs Node, npm vagy más külső eszközlánc: a generáláshoz ugyanaz a PHP kell, ami a kiszolgálón amúgy is fut.
 
 **Paletta.** Három skála: `billiard-green` (mély biliárdposztó zöld, 50–950), `billiard-gold` (meleg sárgaréz akcentus) és `sand` (meleg semleges alapszínek a hideg szürke helyett). Betűtípus: Inter.
 
-**Komponensosztályok.** A `public/assets/css/app.css` egy kis komponenskészletet definiál, hogy a nézetek olvashatóak maradjanak hosszú Tailwind osztálylisták helyett:
+**Márkajel és ikonok.** Minden megjelenés egyetlen forrásfájlból származik: `public/assets/images/logo.png`, a klub címere. Ebből készül a böngészőfül ikonja, az iOS kezdőképernyő ikonja, a webmanifest ikonjai és a közösségi megosztás előnézeti képe:
+
+```bash
+php tools/generate-icons.php
+```
+
+| Előállított fájl | Rendeltetés |
+| --- | --- |
+| `public/favicon.ico` | 16 + 32 + 48 px, régebbi böngészők és a Google Search |
+| `public/icon-192.png`, `public/icon-512.png` | modern böngészők és a webmanifest |
+| `public/apple-touch-icon.png` | 180 px, iOS kezdőképernyő |
+| `public/assets/images/og-default.png` | 1200×630, Facebook és Twitter/X kártya |
+
+Az oldalon látható márkajelet a `src/Views/partials/brand-mark.php` adja — ugyanezt a képet mutatja a fejlécben, a láblécben, a szervezői felületen és a hibaoldalakon is. Méretezése a `$brandMarkSize` változóval állítható (pl. `'w-9 h-9'`).
+
+Az ikonok háttere törtfehér (`sand-50`), nem a márka sötétzöldje: a címer túlnyomóan kék arany kerettel, sötét alapon 16 pixelen összemosódna. A logó cseréjéhez elég felülírni a forrásfájlt és újra lefuttatni a generátort.
+
+**Komponensosztályok.** A `public/assets/css/app.css` egy kis komponenskészletet definiál, hogy a nézetek olvashatóak maradjanak hosszú segédosztály-listák helyett. Ezt a fájlt a generátor nem írja felül, közvetlenül szerkeszthető:
 
 | Osztály | Rendeltetés |
 | --- | --- |

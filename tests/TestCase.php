@@ -12,6 +12,7 @@ use App\Services\EmailService;
 use App\Services\GalleryService;
 use App\Services\ImageService;
 use App\Services\NewsService;
+use App\Services\SettingsService;
 use App\Services\TopicService;
 use App\Services\ValidationService;
 use Mockery;
@@ -49,6 +50,10 @@ abstract class TestCase extends PHPUnitTestCase
 
         // Táblák létrehozása
         $this->createTables();
+
+        // A beállítások gyorsítótára statikus, ezért a tesztesetek között is
+        // fennmaradna: eldobjuk, hogy minden teszt friss állapotból induljon.
+        SettingsService::clearCache();
     }
 
     protected function tearDown(): void
@@ -67,6 +72,18 @@ abstract class TestCase extends PHPUnitTestCase
     protected function truncateTable(string $table): void
     {
         $this->db->exec("DELETE FROM {$table}");
+    }
+
+    /**
+     * A fórum modul be- vagy kikapcsolása a teszt idejére.
+     *
+     * A fórum alapértelmezetten inaktív, ezért a hozzá tartozó viselkedést
+     * (menüpont, útvonalak, szerkesztői hivatkozáslista) csak bekapcsolt
+     * állapotban lehet vizsgálni.
+     */
+    protected function setForumEnabled(bool $enabled): void
+    {
+        (new SettingsService($this->db))->setEnabled(SettingsService::FORUM_ENABLED, $enabled);
     }
 
     /**
@@ -211,9 +228,60 @@ abstract class TestCase extends PHPUnitTestCase
                 name TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE,
                 phone TEXT NOT NULL,
+                city TEXT NOT NULL DEFAULT \'\',
                 password_hash TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime(\'now\')),
                 updated_at TEXT DEFAULT (datetime(\'now\'))
+            )
+        ');
+
+        // Oldalbeállítások: a kapcsolható modulok állapota
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS site_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT,
+                updated_at TEXT DEFAULT (datetime(\'now\'))
+            )
+        ');
+
+        // Szerkeszthető tartalmi oldalak
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS pages (
+                id TEXT PRIMARY KEY,
+                slug TEXT NOT NULL UNIQUE,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                meta_description TEXT,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\'))
+            )
+        ');
+
+        // Album helyezettek
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS album_placements (
+                id TEXT PRIMARY KEY,
+                album_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                note TEXT,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\')),
+                FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
+            )
+        ');
+
+        // Belépés megjegyzésének tokenjei
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS remember_tokens (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                selector TEXT NOT NULL UNIQUE,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                last_used_at TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )
         ');
 

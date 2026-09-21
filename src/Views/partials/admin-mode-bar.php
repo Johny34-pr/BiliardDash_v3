@@ -1,6 +1,6 @@
 <?php
 /**
- * Szervezői mód jelzősáv - Magyar Biliárd Weboldal
+ * Szervezői mód jelzősáv - Okányi Biliárd Klub weboldal
  *
  * A publikus oldalak tetején jelenik meg, ha szervezői hozzáférés aktív.
  * Így nem fordulhat elő, hogy valaki észrevétlenül marad bejelentkezve a

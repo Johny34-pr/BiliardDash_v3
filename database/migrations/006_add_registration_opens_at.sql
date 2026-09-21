@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Nevezés nyitódátuma
+-- Okányi Biliárd Klub weboldal - Nevezés nyitódátuma
 -- Migráció: 006_add_registration_opens_at.sql
 --
 -- Leírás:

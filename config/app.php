@@ -15,7 +15,7 @@ use App\Core\Env;
 Env::load();
 
 return [
-    'name' => Env::get('APP_NAME', 'Magyar Biliárd'),
+    'name' => Env::get('APP_NAME', 'Okányi Biliárd Klub'),
     'base_url' => Env::get('APP_URL', 'http://localhost'),
     'upload_max_size' => 10 * 1024 * 1024, // 10 MB
     'upload_allowed_types' => ['image/jpeg', 'image/png'],

@@ -29,7 +29,7 @@ class CompetitionController
     public function index(): void
     {
         $competitions = $this->competitionService->getOpenCompetitions();
-        $pageTitle = 'Versenynevezés - Magyar Biliárd';
+        $pageTitle = 'Versenynevezés - Okányi Biliárd Klub';
         $metaDescription = 'Nyitott biliárdversenyek és online nevezés. '
             . 'Nézd meg a versenyek dátumát, helyszínét és a nevezési határidőt.';
 
@@ -59,7 +59,7 @@ class CompetitionController
         $registrants = $this->competitionService->getPublicRegistrants($versenyId);
         $deadlinePassed = $this->competitionService->isDeadlinePassed($competition);
         $registrationOpened = $this->competitionService->hasRegistrationOpened($competition);
-        $pageTitle = 'Nevezők: ' . $competition['name'] . ' - Magyar Biliárd';
+        $pageTitle = 'Nevezők: ' . $competition['name'] . ' - Okányi Biliárd Klub';
         $metaDescription = sprintf(
             'A(z) %s nevezői listája. %d nevező, a verseny %s, helyszín: %s.',
             $competition['name'],
@@ -201,7 +201,7 @@ class CompetitionController
         $registrationOpened = $this->competitionService->hasRegistrationOpened($competition);
         $currentUser = Session::user();
 
-        $pageTitle = 'Nevezés: ' . $competition['name'] . ' - Magyar Biliárd';
+        $pageTitle = 'Nevezés: ' . $competition['name'] . ' - Okányi Biliárd Klub';
         $metaDescription = sprintf(
             'Online nevezés a(z) %s versenyre. Időpont: %s, helyszín: %s. Nevezési határidő: %s.',
             $competition['name'],
@@ -224,7 +224,7 @@ class CompetitionController
             'url' => siteUrl('/nevezes/' . $competition['id']),
             'organizer' => [
                 '@type' => 'Organization',
-                'name' => 'Magyar Biliárd',
+                'name' => 'Okányi Biliárd Klub',
                 'url' => siteUrl('/'),
             ],
         ];

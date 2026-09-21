@@ -17,6 +17,14 @@
 composer.phar
 
 # ==========================================================================
+# Stíluslap
+# ==========================================================================
+# A public/assets/css/tailwind.css generált fájl, mégis verziókövetett:
+# így az oldal build lépés nélkül is kiszolgálható. Előállítása:
+# "php tools/build-css.php". A projekt nem használ Node-ot és npm-et,
+# ezért itt nincs node_modules kizárás.
+
+# ==========================================================================
 # Tesztelés
 # ==========================================================================
 /.phpunit.cache/

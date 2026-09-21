@@ -1,6 +1,6 @@
 <?php
 /**
- * Fejléc partial - Magyar Biliárd Weboldal
+ * Fejléc partial - Okányi Biliárd Klub weboldal
  *
  * Ragadós (sticky), áttetsző hátterű fejléc, amely egyetlen sávban tartalmazza
  * a márkajelet, a főnavigációt és az admin hivatkozásokat. Ezzel megszűnik a
@@ -14,15 +14,10 @@
         <div class="flex items-center justify-between h-16 md:h-[4.5rem] gap-4">
 
             <!-- Márkajel -->
-            <a href="/" class="flex items-center gap-2.5 shrink-0" aria-label="Magyar Biliárd - főoldal">
-                <span class="grid place-items-center w-9 h-9 rounded-full bg-gradient-to-br from-billiard-gold-300 to-billiard-gold-500 shadow-inset-line">
-                    <!-- Biliárdgolyó jelkép: arany körben sötét szám-mező -->
-                    <span class="grid place-items-center w-[18px] h-[18px] rounded-full bg-billiard-green-950">
-                        <span class="text-[10px] font-bold leading-none text-billiard-gold-300">8</span>
-                    </span>
-                </span>
+            <a href="/" class="flex items-center gap-2.5 shrink-0" aria-label="Okányi Biliárd Klub - főoldal">
+                <?php $brandMarkSize = 'w-9 h-9'; require __DIR__ . '/brand-mark.php'; ?>
                 <span class="flex flex-col leading-none gap-0.5">
-                    <span class="font-semibold tracking-tightest text-[1.0625rem] text-white">Magyar Biliárd</span>
+                    <span class="font-semibold tracking-tightest text-[1.0625rem] text-white">Okányi Biliárd Klub</span>
                     <span class="hidden sm:block text-[0.6875rem] font-medium tracking-wider uppercase text-white/45">Közösségi portál</span>
                 </span>
             </a>
@@ -62,9 +57,9 @@
                 </a>
             <?php endforeach; ?>
 
-            <!-- ==== Látogatói fiók (mobil) ==== -->
+            <!-- ==== Belépés / látogatói fiók (mobil) ==== -->
             <span class="mt-2 pt-3 px-4 border-t border-white/10 text-[0.6875rem] font-semibold uppercase tracking-wider text-white/40">
-                Látogatói fiók
+                Belépés
             </span>
             <?php if (\App\Core\Session::isUser()): ?>
                 <?php $mobileUser = \App\Core\Session::user(); ?>

@@ -33,11 +33,16 @@ class AuthService
      * Az e-mail címet kisbetűsítve tárolja, hogy a bejelentkezés ne legyen
      * kis-nagybetű érzékeny.
      *
-     * @return array{id:string, name:string, email:string, phone:string, created_at:string}
+     * @return array{id:string, name:string, email:string, phone:string, city:string, created_at:string}
      * @throws AppException Ha az e-mail cím már használatban van.
      */
-    public function register(string $name, string $email, string $phone, string $password): array
-    {
+    public function register(
+        string $name,
+        string $email,
+        string $phone,
+        string $city,
+        string $password
+    ): array {
         $email = $this->normalizeEmail($email);
 
         if ($this->userModel->emailExists($email)) {
@@ -47,7 +52,7 @@ class AuthService
         $id = Uuid::uuid4()->toString();
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
-        $this->userModel->create($id, $name, $email, $phone, $passwordHash);
+        $this->userModel->create($id, $name, $email, $phone, $city, $passwordHash);
 
         $user = $this->userModel->findById($id);
 
@@ -87,17 +92,90 @@ class AuthService
             'name' => $user['name'],
             'email' => $user['email'],
             'phone' => $user['phone'],
+            'city' => $user['city'] ?? '',
         ];
     }
 
     /**
      * Felhasználó lekérdezése azonosító alapján.
      *
-     * @return array{id:string, name:string, email:string, phone:string, created_at:string}|null
+     * @return array{id:string, name:string, email:string, phone:string, city:string, created_at:string}|null
      */
     public function getUserById(string $id): ?array
     {
         return $this->userModel->findById($id);
+    }
+
+    // =====================================================================
+    // Szervezői felhasználókezelés
+    // =====================================================================
+
+    /**
+     * Összes fiók a szervezői listához, a nevezésszámmal együtt.
+     *
+     * @return array<array{id:string, name:string, email:string, phone:string, city:string, created_at:string, registration_count:int}>
+     */
+    public function getAllUsers(): array
+    {
+        return $this->userModel->findAll();
+    }
+
+    /**
+     * Fiók adatainak módosítása szervezői jogkörben.
+     *
+     * @return array{id:string, name:string, email:string, phone:string, city:string, created_at:string}
+     * @throws AppException Ha a fiók nem létezik, vagy az e-mail cím foglalt.
+     */
+    public function updateUser(string $id, string $name, string $email, string $phone, string $city): array
+    {
+        if ($this->userModel->findById($id) === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        $email = $this->normalizeEmail($email);
+
+        if ($this->userModel->emailExistsForOther($email, $id)) {
+            throw AppException::duplicateEntry('Ezt az e-mail címet már másik fiók használja');
+        }
+
+        $this->userModel->update($id, $name, $email, $phone, $city);
+
+        return $this->userModel->findById($id);
+    }
+
+    /**
+     * Jelszó felülírása szervezői jogkörben.
+     *
+     * A jelszóváltás minden megjegyzett belépést érvénytelenít, ezért a
+     * hívónak a RememberMeService::forgetAllForUser() metódust is meg kell
+     * hívnia - különben egy régi süti továbbra is beléptetne.
+     *
+     * @throws AppException Ha a fiók nem létezik.
+     */
+    public function updatePassword(string $id, string $password): void
+    {
+        if ($this->userModel->findById($id) === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        $this->userModel->updatePassword($id, password_hash($password, PASSWORD_DEFAULT));
+    }
+
+    /**
+     * Fiók törlése.
+     *
+     * A felhasználó nevezései megmaradnak, vendégnevezéssé válnak (a
+     * registrations idegen kulcsa ON DELETE SET NULL).
+     *
+     * @throws AppException Ha a fiók nem létezik.
+     */
+    public function deleteUser(string $id): void
+    {
+        if ($this->userModel->findById($id) === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        $this->userModel->delete($id);
     }
 
     /**

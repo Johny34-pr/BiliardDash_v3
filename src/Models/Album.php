@@ -29,6 +29,41 @@ class Album
     }
 
     /**
+     * Az albumok száma.
+     */
+    public function countAll(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM albums')->fetchColumn();
+    }
+
+    /**
+     * Összes album a borítóképe adataival együtt, egyetlen lekérdezésben.
+     *
+     * A galéria listája minden albumot a borítóképével jelöl. Albumonkénti
+     * külön képlekérdezés helyett LEFT JOIN-nal kérjük le a borítót, így a
+     * lista N+1 helyett egyetlen lekérdezésből áll össze.
+     *
+     * A JOIN azért LEFT, mert az album lehet kép nélküli, és a
+     * cover_image_id is mutathat már törölt képre.
+     *
+     * @return array<array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string, cover_thumbnail_path:?string, cover_full_path:?string, cover_alt_text:?string}>
+     */
+    public function findAllWithCover(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT a.id, a.name, a.cover_image_id, a.image_count, a.created_at,
+                    i.thumbnail_path AS cover_thumbnail_path,
+                    i.full_path AS cover_full_path,
+                    i.alt_text AS cover_alt_text
+             FROM albums a
+             LEFT JOIN images i ON i.id = a.cover_image_id
+             ORDER BY a.created_at DESC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Egy album lekérdezése ID alapján.
      *
      * @return array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string}|null

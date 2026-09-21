@@ -57,9 +57,9 @@ class ForumController
         $currentUser = Session::user();
 
         $pageTitle = $page > 1
-            ? "Fórum ({$page}. oldal) - Magyar Biliárd"
-            : 'Fórum - Magyar Biliárd';
-        $metaDescription = 'A magyar biliárd közösség fóruma: kérdések, versenybeszámolók '
+            ? "Fórum ({$page}. oldal) - Okányi Biliárd Klub"
+            : 'Fórum - Okányi Biliárd Klub';
+        $metaDescription = 'Az Okányi Biliárd Klub fóruma: kérdések, versenybeszámolók '
             . 'és beszélgetés a játékról. Hozzászólni belépés nélkül is lehet.';
 
         // Lapozásnál a lapszám valódi tartalmi különbség, ezért az adott lap
@@ -322,7 +322,7 @@ class ForumController
         $maxTitleLength = TopicService::MAX_TITLE_LENGTH;
         $maxBodyLength = TopicService::MAX_BODY_LENGTH;
 
-        $pageTitle = 'Új topik - Fórum - Magyar Biliárd';
+        $pageTitle = 'Új topik - Fórum - Okányi Biliárd Klub';
 
         ob_start();
         require __DIR__ . '/../Views/forum/create.php';
@@ -357,8 +357,8 @@ class ForumController
             : [];
 
         $pageTitle = $page > 1
-            ? $topic['title'] . " ({$page}. oldal) - Fórum - Magyar Biliárd"
-            : $topic['title'] . ' - Fórum - Magyar Biliárd';
+            ? $topic['title'] . " ({$page}. oldal) - Fórum - Okányi Biliárd Klub"
+            : $topic['title'] . ' - Fórum - Okányi Biliárd Klub';
 
         // A topik nyitó bejegyzése adja a leírást: ez a téma tartalma.
         $metaDescription = $this->buildTopicDescription($topic);
@@ -387,7 +387,7 @@ class ForumController
         $body = trim((string) preg_replace('/\s+/u', ' ', $topic['body']));
 
         if ($body === '') {
-            return $topic['title'] . ' - beszélgetés a Magyar Biliárd fórumán.';
+            return $topic['title'] . ' - beszélgetés az Okányi Biliárd Klub fórumán.';
         }
 
         if (mb_strlen($body) <= 160) {

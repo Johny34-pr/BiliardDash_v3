@@ -32,6 +32,14 @@ class NewsService
      *
      * @return array{id:string, title:string, content:string, summary:?string, published_at:string, created_at:string, updated_at:string}|null
      */
+    /**
+     * A hírek száma (az áttekintő statisztikához).
+     */
+    public function countNews(): int
+    {
+        return $this->newsModel->countAll();
+    }
+
     public function getNewsById(string $id): ?array
     {
         return $this->newsModel->findById($id);

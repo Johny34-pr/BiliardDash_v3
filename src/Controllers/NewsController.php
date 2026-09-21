@@ -28,7 +28,7 @@ class NewsController
 
         // A címet nyersen adjuk át: az escape-elés a head partial dolga.
         // Kétszeres e() hívásból korábban "&amp;" jelent meg a fülön.
-        $pageTitle = $news['title'] . ' - Magyar Biliárd';
+        $pageTitle = $news['title'] . ' - Okányi Biliárd Klub';
 
         // A hír bevezetője adja a keresőnek és a megosztásnak a leírást.
         // A summary már tag- és entitásmentes szöveg (NewsService), csak
@@ -48,7 +48,7 @@ class NewsController
             'mainEntityOfPage' => siteUrl('/hirek/' . $news['id']),
             'publisher' => [
                 '@type' => 'Organization',
-                'name' => 'Magyar Biliárd',
+                'name' => 'Okányi Biliárd Klub',
                 'url' => siteUrl('/'),
             ],
         ];

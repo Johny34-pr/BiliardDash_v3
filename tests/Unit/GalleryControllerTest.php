@@ -41,6 +41,29 @@ class GalleryControllerTest extends TestCase
             )
         ');
 
+        // A galéria az albumok mellett a verseny helyezettjeit is megjeleníti
+        $this->pdo->exec('
+            CREATE TABLE album_placements (
+                id TEXT PRIMARY KEY,
+                album_id TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                note TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ');
+
+        // A layout a navigációhoz megkérdezi a kapcsolható modulok állapotát.
+        // A tábla üresen marad, tehát a fórum kikapcsolt - ez az éles
+        // alapértelmezés is.
+        $this->pdo->exec('
+            CREATE TABLE site_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT
+            )
+        ');
+
         Database::setConnection($this->pdo);
 
         if (session_status() === PHP_SESSION_NONE) {
@@ -65,10 +88,49 @@ class GalleryControllerTest extends TestCase
 
         $this->assertStringContainsString('Nyári verseny', $output);
         $this->assertStringContainsString('Téli kupa', $output);
-        $this->assertStringContainsString('5 kép', $output);
-        $this->assertStringContainsString('3 kép', $output);
         $this->assertStringContainsString('/galeria/album-1', $output);
         $this->assertStringContainsString('/galeria/album-2', $output);
+
+        // A lista a borítóképet és a helyezetteket mutatja, nem a képek
+        // számát: egy album egy verseny eredményhirdetését jelenti.
+        $this->assertStringNotContainsString('5 kép', $output);
+        $this->assertStringContainsString('Album megnyitása', $output);
+    }
+
+    /**
+     * Az album kártyáján a dobogó jelenik meg, a negyedik helyezettől
+     * pedig összevont jelzés.
+     */
+    public function testIndexShowsPodiumOnAlbumCard(): void
+    {
+        $this->pdo->exec("INSERT INTO albums (id, name, image_count) VALUES ('album-1', 'Nyári verseny', 1)");
+
+        $players = [
+            ['p1', 1, 'Első Péter'],
+            ['p2', 2, 'Második Pál'],
+            ['p3', 3, 'Harmadik Anna'],
+            ['p4', 4, 'Negyedik Béla'],
+        ];
+
+        foreach ($players as [$id, $position, $name]) {
+            $this->pdo->exec(
+                "INSERT INTO album_placements (id, album_id, position, player_name)
+                 VALUES ('{$id}', 'album-1', {$position}, '{$name}')"
+            );
+        }
+
+        ob_start();
+        $controller = new GalleryController();
+        $controller->index();
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('Első Péter', $output);
+        $this->assertStringContainsString('Második Pál', $output);
+        $this->assertStringContainsString('Harmadik Anna', $output);
+
+        // A negyedik már nem a kártyán, csak összesítve jelenik meg
+        $this->assertStringNotContainsString('Negyedik Béla', $output);
+        $this->assertStringContainsString('további helyezett', $output);
     }
 
     public function testIndexShowsEmptyMessageWhenNoAlbums(): void
@@ -88,7 +150,7 @@ class GalleryControllerTest extends TestCase
         $controller->index();
         $output = ob_get_clean();
 
-        $this->assertStringContainsString('<title>Galéria - Magyar Biliárd</title>', $output);
+        $this->assertStringContainsString('<title>Galéria - Okányi Biliárd Klub</title>', $output);
     }
 
     public function testShowRendersAlbumImages(): void
@@ -103,10 +165,47 @@ class GalleryControllerTest extends TestCase
         $output = ob_get_clean();
 
         $this->assertStringContainsString('Nyári verseny', $output);
-        $this->assertStringContainsString('uploads/albums/album-1/thumb/photo1.jpg', $output);
-        $this->assertStringContainsString('uploads/albums/album-1/thumb/photo2.jpg', $output);
+
+        // Az album oldala a borítóképet mutatja nagyban, nem bélyegkép
+        // rácsot: a beállított borító hiányában a legfrissebb kép áll be.
+        $this->assertStringContainsString('uploads/albums/album-1/full/', $output);
+        $this->assertStringNotContainsString('thumb/photo1.jpg', $output);
+
+        // A nagyításhoz a lightbox továbbra is betöltődik, egyetlen képpel
         $this->assertStringContainsString('gallery.js', $output);
         $this->assertStringContainsString('galleryImages', $output);
+        $this->assertSame(1, substr_count($output, '"full":'));
+    }
+
+    /**
+     * Az album oldala kéthasábos: balra a kép, jobbra a helyezettek, és a
+     * bezárás visszavisz az albumok listájára.
+     */
+    public function testShowRendersPlacementsBesideImage(): void
+    {
+        $this->pdo->exec("INSERT INTO albums (id, name, image_count) VALUES ('album-1', 'Nyári verseny', 1)");
+        $this->pdo->exec(
+            "INSERT INTO images (id, album_id, filename, thumbnail_path, full_path)
+             VALUES ('img-1', 'album-1', 'p.jpg', 'uploads/albums/album-1/thumb/p.jpg', 'uploads/albums/album-1/full/p.jpg')"
+        );
+        $this->pdo->exec(
+            "INSERT INTO album_placements (id, album_id, position, player_name, note)
+             VALUES ('pl-1', 'album-1', 1, 'Győztes Gábor', 'Okány')"
+        );
+
+        ob_start();
+        $controller = new GalleryController();
+        $controller->show('album-1');
+        $output = ob_get_clean();
+
+        $this->assertStringContainsString('Helyezettek', $output);
+        $this->assertStringContainsString('Győztes Gábor', $output);
+        $this->assertStringContainsString('Okány', $output);
+
+        // Kéthasábos elrendezés és a kilépés útja
+        $this->assertStringContainsString('lg:col-span-3', $output);
+        $this->assertStringContainsString('lg:col-span-2', $output);
+        $this->assertStringContainsString('Vissza az albumokhoz', $output);
     }
 
     public function testShowThrows404ForNonExistentAlbum(): void
@@ -128,8 +227,11 @@ class GalleryControllerTest extends TestCase
         $output = ob_get_clean();
 
         $this->assertStringContainsString('Üres album', $output);
-        $this->assertStringContainsString('Ez az album jelenleg üres', $output);
+        $this->assertStringContainsString('Ehhez az albumhoz még nincs kép', $output);
         $this->assertStringNotContainsString('gallery.js', $output);
+
+        // Kép nélkül is látszik a helyezettek hasábja, üres állapotban
+        $this->assertStringContainsString('Még nincs felvitt eredmény', $output);
     }
 
     public function testShowIncludesImagePlaceholderOnError(): void

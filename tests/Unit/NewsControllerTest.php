@@ -31,6 +31,16 @@ class NewsControllerTest extends TestCase
             )
         ');
 
+        // A layout a navigációhoz megkérdezi a kapcsolható modulok állapotát.
+        // A tábla üresen marad, tehát a fórum kikapcsolt - ez az éles
+        // alapértelmezés is.
+        $this->pdo->exec('
+            CREATE TABLE site_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT
+            )
+        ');
+
         Database::setConnection($this->pdo);
 
         // Start session for layout
@@ -73,7 +83,7 @@ class NewsControllerTest extends TestCase
         $controller->show('test-id');
         $output = ob_get_clean();
 
-        $this->assertStringContainsString('<title>Egyedi Cím - Magyar Biliárd</title>', $output);
+        $this->assertStringContainsString('<title>Egyedi Cím - Okányi Biliárd Klub</title>', $output);
     }
 
     public function testShowContainsBackLink(): void

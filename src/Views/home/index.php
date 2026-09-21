@@ -33,7 +33,7 @@ if (!$error && !empty($news)) {
     <div class="relative px-6 py-14 md:px-14 md:py-20 max-w-3xl">
         <p class="eyebrow text-billiard-gold-300 mb-4">
             <span class="w-6 h-px bg-billiard-gold-400" aria-hidden="true"></span>
-            Magyar Biliárd Közösség
+            Okányi Biliárd Klub
         </p>
         <h1 class="text-4xl md:text-[3.25rem] font-bold tracking-tightest leading-[1.08] mb-5">
             Hírek, versenyek és<br class="hidden sm:block">

@@ -75,7 +75,13 @@ $renameErrors = $renameErrors ?? [];
                             <a href="/galeria/<?= e($album['id']) ?>" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
                                 Megnézés
                             </a>
-                            <a href="/admin/galeria/<?= e($album['id']) ?>/feltolt" class="btn btn-primary btn-sm">
+                            <a href="/admin/galeria/<?= e($album['id']) ?>/helyezettek" class="btn btn-primary btn-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.006 0H9.497m5.006 0a3 3 0 00-5.006 0M16.5 6.75V15m0-8.25a3 3 0 00-3-3h-3a3 3 0 00-3 3m9 0h1.5a1.5 1.5 0 011.5 1.5v1.5a3 3 0 01-3 3M7.5 6.75V15m0-8.25H6A1.5 1.5 0 004.5 8.25v1.5a3 3 0 003 3"/>
+                                </svg>
+                                Helyezettek
+                            </a>
+                            <a href="/admin/galeria/<?= e($album['id']) ?>/feltolt" class="btn btn-secondary btn-sm">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/>
                                 </svg>

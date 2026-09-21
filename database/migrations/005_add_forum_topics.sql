@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Fórum topikok
+-- Okányi Biliárd Klub weboldal - Fórum topikok
 -- Migráció: 005_add_forum_topics.sql
 --
 -- Leírás:
@@ -69,7 +69,7 @@ INSERT INTO topics (id, user_id, author_name, title, body, created_at, last_acti
 SELECT
     '00000000-0000-4000-8000-000000000001',
     NULL,
-    'Magyar Biliárd',
+    'Okányi Biliárd Klub',
     'Általános beszélgetés',
     'Ebben a topikban a fórum korábbi, téma nélküli hozzászólásai találhatók.',
     COALESCE(MIN(created_at), NOW()),

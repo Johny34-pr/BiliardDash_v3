@@ -20,12 +20,27 @@ function redirect(string $url): void
 }
 
 /**
- * Asset URL generálás (publikus fájlokhoz)
- * Hívás: asset('css/app.css') → '/assets/css/app.css'
+ * Asset URL generálás (publikus fájlokhoz), gyorsítótör verzióval.
+ *
+ * Hívás: asset('css/app.css') → '/assets/css/app.css?v=1712345678'
+ *
+ * A verziószám a fájl utolsó módosításának időpontja. Erre azért van
+ * szükség, mert a stíluslapokat és a szkripteket hosszú lejárattal
+ * gyorsítótárazzuk: enélkül a látogató böngészője egy módosítás után is a
+ * régi fájlt használná. A fájl módosításakor a cím megváltozik, ezért a
+ * böngésző újra letölti - kézi verziózás nélkül.
+ *
+ * Nem létező fájlnál a verzió elmarad, így a hivatkozás nem törik el.
  */
 function asset(string $path): string
 {
     $path = ltrim($path, '/');
+    $absolute = dirname(__DIR__, 2) . '/public/assets/' . $path;
+
+    if (is_file($absolute)) {
+        return '/assets/' . $path . '?v=' . filemtime($absolute);
+    }
+
     return '/assets/' . $path;
 }
 
@@ -141,4 +156,74 @@ function siteUrl(string $path = '/'): string
 function canonicalUrl(): string
 {
     return siteUrl(currentUrl());
+}
+
+/**
+ * Az oldalbeállítások kulcs-érték térképe.
+ *
+ * A nézetekbe és az útvonaldefinícióba nem lehet szolgáltatást átadni, ezért
+ * a kapcsolható funkciókat ezen a helperen keresztül kérdezzük le. A
+ * SettingsService statikus gyorsítótára miatt ez kérésenként egyetlen
+ * adatbázis-lekérdezést jelent.
+ *
+ * Adatbázishiba esetén üres térképet ad vissza, így a kapcsolók az
+ * alapértelmezésükre esnek, és egy beállítási hiba nem viszi magával az
+ * egész oldalt.
+ *
+ * @return array<string, string|null>
+ */
+function siteSettings(): array
+{
+    try {
+        return (new \App\Services\SettingsService(\App\Core\Database::getConnection()))->all();
+    } catch (\Throwable $e) {
+        error_log('[helpers] Az oldalbeállítások betöltése nem sikerült: ' . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Aktív-e a fórum modul.
+ *
+ * Alapértelmezetten nem: a fórum csak akkor jelenik meg a menüben és csak
+ * akkor érhetők el az útvonalai, ha a szervező bekapcsolta.
+ */
+function forumEnabled(): bool
+{
+    return (siteSettings()[\App\Services\SettingsService::FORUM_ENABLED] ?? '0') === '1';
+}
+
+/**
+ * Kapcsolati adatok és társhonlapok a config/contact.php fájlból.
+ *
+ * A lábléc és a Társhonlapok oldal is ezt olvassa, ezért egyszer töltjük be
+ * és megjegyezzük. Az üresen hagyott értékeket a nézetek kihagyják, így egy
+ * kitöltetlen mező nem okoz csonka megjelenést.
+ *
+ * @return array<string, mixed>
+ */
+function contactConfig(): array
+{
+    static $config = null;
+
+    if ($config === null) {
+        $config = require dirname(__DIR__, 2) . '/config/contact.php';
+    }
+
+    return $config;
+}
+
+/**
+ * A megadott címmel rendelkező közösségi hivatkozások.
+ *
+ * A config/contact.php minden bejegyzést felsorol, de a még kitöltetlen
+ * címűeket nem szabad linkként kiírni, mert üres hivatkozás lenne belőlük.
+ *
+ * @return array<string, array{label:string, description:string, url:string}>
+ */
+function socialLinks(): array
+{
+    $links = contactConfig()['social'] ?? [];
+
+    return array_filter($links, static fn(array $link): bool => trim($link['url'] ?? '') !== '');
 }

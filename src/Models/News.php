@@ -17,6 +17,17 @@ class News
      *
      * @return array<array{id:string, title:string, summary:?string, published_at:string, created_at:string, updated_at:string}>
      */
+    /**
+     * A hírek száma.
+     *
+     * Az áttekintő korábban a teljes híranyagot betöltötte, csak hogy
+     * megszámolja - ez a lekérdezés csak a számot kéri le.
+     */
+    public function countAll(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM news')->fetchColumn();
+    }
+
     public function findLatest(int $limit = 10): array
     {
         $stmt = $this->db->prepare(

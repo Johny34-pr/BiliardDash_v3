@@ -63,7 +63,7 @@ $editorEndpoints = [
 </script>
 
 <script src="https://cdn.tiny.cloud/1/<?= e($tinymceCdnKey) ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
-<script src="/assets/js/editor.js"></script>
+<script src="<?= e(asset('js/editor.js')) ?>"></script>
 
 <?php if (!$hasTinymceKey): ?>
     <!-- Beállítási emlékeztető: a szerkesztő működik, de figyelmeztetést mutat -->

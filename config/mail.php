@@ -19,6 +19,6 @@ return [
     'username' => Env::get('MAIL_USERNAME', '') ?? '',
     'password' => Env::get('MAIL_PASSWORD', '') ?? '',
     'encryption' => Env::get('MAIL_ENCRYPTION', 'tls'),
-    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'info@magyarbilliard.hu'),
-    'from_name' => Env::get('MAIL_FROM_NAME', 'Magyar Biliárd'),
+    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'info@okanyibiliard.hu'),
+    'from_name' => Env::get('MAIL_FROM_NAME', 'Okányi Biliárd Klub'),
 ];

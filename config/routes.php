@@ -22,21 +22,34 @@ $router->get('/hirek/{id}', 'NewsController@show');
 $router->get('/galeria', 'GalleryController@index');
 $router->get('/galeria/{albumId}', 'GalleryController@show');
 $router->get('/nevezes', 'CompetitionController@index');
+
+// Tartalmi oldalak. A Rólunk, az Emlékoldal és az adatkezelési tájékoztató
+// szövege a szervezői felületen szerkeszthető; a Társhonlapok statikus.
+$router->get('/rolunk', 'PageController@about');
+$router->get('/emlekoldal', 'PageController@memorial');
+$router->get('/tarshonlapok', 'PageController@partners');
+$router->get('/adatkezeles', 'PageController@privacy');
 // A nevezői lista belépés nélkül is elérhető (csak nevek, elérhetőségek nélkül)
 $router->get('/nevezes/{versenyId}/nevezok', 'CompetitionController@registrants');
 $router->get('/nevezes/{versenyId}', 'CompetitionController@showForm');
 $router->post('/nevezes/{versenyId}', 'CompetitionController@submitRegistration');
 
 // === Fórum (kommentelés vendégként és belépve) ===
-
-$router->get('/forum', 'ForumController@index');
-// A konkrét útvonalak a paraméteres minta előtt szerepelnek, hogy a
-// "/forum/uj" ne a topik azonosítójaként értelmeződjön.
-$router->get('/forum/uj', 'ForumController@createForm');
-$router->post('/forum/uj', 'ForumController@store');
-$router->post('/forum/hozzaszolas/{id}/ertekeles', 'ForumController@vote');
-$router->get('/forum/{id}', 'ForumController@show');
-$router->post('/forum/{id}/hozzaszolas', 'ForumController@storeComment');
+//
+// A fórum kapcsolható modul, és alapértelmezetten inaktív. Kikapcsolt
+// állapotban az útvonalai nincsenek is regisztrálva, ezért a router 404-et
+// ad rájuk. Ez erősebb védelem, mint egy nézetbeli elrejtés: a mentett
+// hivatkozáson keresztül sem érhető el a tartalom.
+if (forumEnabled()) {
+    $router->get('/forum', 'ForumController@index');
+    // A konkrét útvonalak a paraméteres minta előtt szerepelnek, hogy a
+    // "/forum/uj" ne a topik azonosítójaként értelmeződjön.
+    $router->get('/forum/uj', 'ForumController@createForm');
+    $router->post('/forum/uj', 'ForumController@store');
+    $router->post('/forum/hozzaszolas/{id}/ertekeles', 'ForumController@vote');
+    $router->get('/forum/{id}', 'ForumController@show');
+    $router->post('/forum/{id}/hozzaszolas', 'ForumController@storeComment');
+}
 
 // === Felhasználói fiókok (publikus, az admin belépéstől független) ===
 
@@ -71,8 +84,14 @@ $router->post('/admin/hirek/{id}/torol', 'AdminController@newsDelete');
 $router->get('/admin/galeria', 'AdminController@albumList');
 $router->post('/admin/galeria/uj', 'AdminController@albumStore');
 $router->post('/admin/galeria/kep/{id}/torol', 'AdminController@imageDelete');
+// Egy helyezés műveletei az azonosítója alapján, album nélkül
+$router->post('/admin/galeria/helyezett/{id}/szerkeszt', 'AdminController@placementUpdate');
+$router->post('/admin/galeria/helyezett/{id}/torol', 'AdminController@placementDelete');
 $router->get('/admin/galeria/{id}/feltolt', 'AdminController@imageUploadForm');
 $router->post('/admin/galeria/{id}/feltolt', 'AdminController@imageUpload');
+$router->get('/admin/galeria/{id}/helyezettek', 'AdminController@placementList');
+$router->post('/admin/galeria/{id}/helyezettek', 'AdminController@placementStore');
+$router->post('/admin/galeria/{id}/boritokep', 'AdminController@albumSetCover');
 $router->post('/admin/galeria/{id}/szerkeszt', 'AdminController@albumUpdate');
 $router->post('/admin/galeria/{id}/torol', 'AdminController@albumDelete');
 
@@ -94,12 +113,34 @@ $router->post('/admin/media/dokumentum', 'AdminMediaController@uploadDocument');
 $router->get('/admin/media/lista', 'AdminMediaController@library');
 $router->get('/admin/media/hivatkozasok', 'AdminMediaController@linkList');
 
+// Admin - Regisztrált felhasználók
+// Nincs létrehozás: fiókot a látogató hoz létre a nyilvános regisztráción.
+$router->get('/admin/felhasznalok', 'AdminController@userList');
+$router->get('/admin/felhasznalok/{id}/szerkeszt', 'AdminController@userEdit');
+$router->post('/admin/felhasznalok/{id}/szerkeszt', 'AdminController@userUpdate');
+$router->post('/admin/felhasznalok/{id}/torol', 'AdminController@userDelete');
+
+// Admin - Tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelési tájékoztató)
+// Nincs létrehozás és törlés: az oldalak fix útvonalon élnek, csak a
+// tartalmuk szerkeszthető.
+$router->get('/admin/oldalak', 'AdminController@pageList');
+$router->get('/admin/oldalak/{id}/szerkeszt', 'AdminController@pageEdit');
+$router->post('/admin/oldalak/{id}/szerkeszt', 'AdminController@pageUpdate');
+
+// Admin - Oldalbeállítások (a kapcsolható modulok itt állíthatók)
+$router->get('/admin/beallitasok', 'AdminController@settings');
+$router->post('/admin/beallitasok', 'AdminController@settingsUpdate');
+
 // Admin - Fórum moderálás
-// A konkrét útvonalak a paraméteres minták előtt szerepelnek.
-$router->get('/admin/forum', 'AdminController@topicList');
-$router->get('/admin/forum/hozzaszolasok', 'AdminController@commentList');
-$router->post('/admin/forum/hozzaszolas/{id}/elrejt', 'AdminController@commentToggleHidden');
-$router->post('/admin/forum/hozzaszolas/{id}/torol', 'AdminController@commentDelete');
-$router->post('/admin/forum/{id}/elrejt', 'AdminController@topicToggleHidden');
-$router->post('/admin/forum/{id}/lezar', 'AdminController@topicToggleLocked');
-$router->post('/admin/forum/{id}/torol', 'AdminController@topicDelete');
+// Csak akkor elérhető, ha a fórum modul aktív: kikapcsolt fórumnál nincs
+// mit moderálni, a beállítások oldalon viszont bármikor visszakapcsolható.
+if (forumEnabled()) {
+    // A konkrét útvonalak a paraméteres minták előtt szerepelnek.
+    $router->get('/admin/forum', 'AdminController@topicList');
+    $router->get('/admin/forum/hozzaszolasok', 'AdminController@commentList');
+    $router->post('/admin/forum/hozzaszolas/{id}/elrejt', 'AdminController@commentToggleHidden');
+    $router->post('/admin/forum/hozzaszolas/{id}/torol', 'AdminController@commentDelete');
+    $router->post('/admin/forum/{id}/elrejt', 'AdminController@topicToggleHidden');
+    $router->post('/admin/forum/{id}/lezar', 'AdminController@topicToggleLocked');
+    $router->post('/admin/forum/{id}/torol', 'AdminController@topicDelete');
+}

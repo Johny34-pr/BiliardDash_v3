@@ -97,7 +97,7 @@ class EmailService
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #166534; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 24px; color: #facc15;">Magyar Biliárd</h1>
+        <h1 style="margin: 0; font-size: 24px; color: #facc15;">Okányi Biliárd Klub</h1>
         <p style="margin: 5px 0 0; font-size: 14px;">Nevezés visszaigazolás</p>
     </div>
 
@@ -146,7 +146,7 @@ class EmailService
     </div>
 
     <div style="background-color: #f9fafb; padding: 15px; text-align: center; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-        <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; Magyar Biliárd | Ez egy automatikus üzenet, kérjük ne válaszolj rá.</p>
+        <p style="margin: 0; font-size: 12px; color: #9ca3af;">&copy; Okányi Biliárd Klub | Ez egy automatikus üzenet, kérjük ne válaszolj rá.</p>
     </div>
 </body>
 </html>

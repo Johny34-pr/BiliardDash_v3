@@ -1,5 +1,10 @@
 # Requirements Document
 
+> **A webhely neve azóta megváltozott.** Ez a dokumentum a tervezés kori
+> "Magyar Biliárd" munkanevet használja; a kész oldal mindenhol
+> **Okányi Biliárd Klub** néven jelenik meg. A követelmények tartalma
+> változatlanul érvényes, csak a megnevezés más.
+
 ## Introduction
 
 Ez a dokumentum a Magyar Biliárd Weboldal követelményeit tartalmazza. A weboldal célja egy professzionális, modern megjelenésű és felhasználóbarát platform létrehozása, amely lehetővé teszi a biliárd közösség számára a hírek böngészését, fotógaléria megtekintését és versenyekre való egyszerű nevezést.

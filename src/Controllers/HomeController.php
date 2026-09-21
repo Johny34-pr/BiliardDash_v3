@@ -29,8 +29,8 @@ class HomeController
 
         // A címben a márkanév áll elöl, mert a főoldal a webhely belépője.
         // A "Főoldal" szó a találati listában nem hordozott információt.
-        $pageTitle = 'Magyar Biliárd - hírek, galéria és online versenynevezés';
-        $metaDescription = 'A magyar biliárd közösség hivatalos oldala: friss hírek, '
+        $pageTitle = 'Okányi Biliárd Klub - hírek, galéria és online versenynevezés';
+        $metaDescription = 'Az Okányi Biliárd Klub hivatalos oldala: friss hírek, '
             . 'versenybeszámolók, fotógaléria és online nevezés a nyitott versenyekre.';
 
         // Render view within layout

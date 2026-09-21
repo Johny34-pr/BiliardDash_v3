@@ -31,6 +31,52 @@ class Image
     }
 
     /**
+     * Albumonként a legfrissebb kép, több albumra egyszerre.
+     *
+     * Akkor kell, ha egy albumnak van képe, de nincs beállított borítója:
+     * ilyenkor a legutóbb feltöltött kép szolgál borítóként. Egyetlen
+     * lekérdezés, hogy a galéria listája ne szaladjon N+1-be.
+     *
+     * @param array<string> $albumIds
+     * @return array<string, array{id:string, thumbnail_path:string, full_path:string, alt_text:?string}>
+     *         Album azonosító => a hozzá tartozó kép
+     */
+    public function findLatestByAlbumIds(array $albumIds): array
+    {
+        if ($albumIds === []) {
+            return [];
+        }
+
+        // A helyőrzők száma a lista hosszától függ, de az értékek kötve
+        // mennek, nem a lekérdezés szövegébe fűzve.
+        $placeholders = implode(', ', array_fill(0, count($albumIds), '?'));
+
+        $stmt = $this->db->prepare(
+            'SELECT album_id, id, thumbnail_path, full_path, alt_text
+             FROM images
+             WHERE album_id IN (' . $placeholders . ')
+             ORDER BY uploaded_at DESC'
+        );
+        $stmt->execute(array_values($albumIds));
+
+        $latest = [];
+        foreach ($stmt->fetchAll() as $row) {
+            // A rendezés miatt az első találat a legfrissebb; a későbbieket
+            // ugyanahhoz az albumhoz már nem írjuk felül
+            if (!isset($latest[$row['album_id']])) {
+                $latest[$row['album_id']] = [
+                    'id' => $row['id'],
+                    'thumbnail_path' => $row['thumbnail_path'],
+                    'full_path' => $row['full_path'],
+                    'alt_text' => $row['alt_text'],
+                ];
+            }
+        }
+
+        return $latest;
+    }
+
+    /**
      * Egy kép lekérdezése ID alapján.
      *
      * @return array{id:string, album_id:string, filename:string, thumbnail_path:string, full_path:string, alt_text:?string, uploaded_at:string}|null

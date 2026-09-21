@@ -1,5 +1,10 @@
 # Design Document: Billiard Website
 
+> **A webhely neve azóta megváltozott.** Ez a dokumentum a tervezés kori
+> "Magyar Biliárd" munkanevet használja; a kész oldal mindenhol
+> **Okányi Biliárd Klub** néven jelenik meg, a jelképe pedig a klub címere
+> (`public/assets/images/logo.png`).
+
 ## Overview
 
 A Magyar Biliárd Weboldal egy hagyományos PHP alapú, reszponzív webalkalmazás, amely három fő modult tartalmaz: hírkezelés, fotógaléria és versenynevezési rendszer. Az alkalmazás egyszerű MVC struktúrában épül fel PHP-vel, MySQL adatbázissal, és bármely standard LAMP/WAMP hosting környezetben futtatható. A frontend HTML/CSS/JavaScript kombinációt használ (Tailwind CSS-sel stilizálva), amelyet a PHP renderel szerver-oldalon.
@@ -542,6 +547,14 @@ class CompetitionController {
 ```
 
 ### Nézet (View) példák
+
+> **Megjegyzés a megvalósításhoz.** Az alábbi vázlat még CDN-ről betöltött
+> stíluslap-generátort mutat, futásidejű `tailwind.config` beállítással. A
+> kész oldal ehelyett előre generált statikus stíluslapot szolgál ki: a design
+> tokenek a `tools/css/tokens.php` fájlban élnek, a stíluslapot a
+> `php tools/build-css.php` állítja elő, a fejrészt pedig a
+> `src/Views/partials/head.php` adja. A palettát is a végleges értékek
+> határozzák meg, nem az itt szereplő példaszínek.
 
 ```php
 <!-- src/Views/layouts/main.php -->

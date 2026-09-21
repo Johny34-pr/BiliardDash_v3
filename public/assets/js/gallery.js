@@ -122,8 +122,24 @@ class Lightbox {
 
     /**
      * Navigációs gombok állapotának frissítése
+     *
+     * Egyetlen kép esetén a nyilak és a számláló el is tűnnek: egy képnél
+     * nincs mire lépni, a letiltott nyíl és az "1 / 1" felirat pedig csak
+     * zavarná a nézőt.
      */
     updateNavButtons() {
+        const single = this.images.length <= 1;
+
+        if (single) {
+            if (this.prevButton) this.prevButton.style.display = 'none';
+            if (this.nextButton) this.nextButton.style.display = 'none';
+
+            const singleCounter = this.overlay ? this.overlay.querySelector('[data-lightbox-counter]') : null;
+            if (singleCounter) singleCounter.style.display = 'none';
+
+            return;
+        }
+
         if (this.prevButton) {
             const isFirst = this.currentIndex <= 0;
             this.prevButton.disabled = isFirst;

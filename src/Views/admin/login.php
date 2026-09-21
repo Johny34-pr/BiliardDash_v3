@@ -7,7 +7,7 @@
  * @var string|null $pageTitle Oldal címe
  * @var string|null $error     Hibaüzenet
  */
-$pageTitle = $pageTitle ?? 'Admin belépés - Magyar Biliárd';
+$pageTitle = $pageTitle ?? 'Admin belépés - Okányi Biliárd Klub';
 ?>
 <!DOCTYPE html>
 <html lang="hu">
@@ -27,13 +27,13 @@ $pageTitle = $pageTitle ?? 'Admin belépés - Magyar Biliárd';
 
             <!-- Márkajel -->
             <div class="flex flex-col items-center text-center mb-8">
-                <span class="grid place-items-center w-12 h-12 rounded-full bg-gradient-to-br from-billiard-gold-300 to-billiard-gold-500 mb-4">
-                    <span class="grid place-items-center w-6 h-6 rounded-full bg-billiard-green-950">
-                        <span class="text-xs font-bold leading-none text-billiard-gold-300">8</span>
-                    </span>
-                </span>
+                <?php
+                $brandMarkSize = 'w-12 h-12';
+                $brandMarkClass = 'mb-4';
+                require __DIR__ . '/../partials/brand-mark.php';
+                ?>
                 <h1 class="text-xl font-semibold tracking-tightest">Szervezői belépés</h1>
-                <p class="text-sm text-white/50 mt-1">Magyar Biliárd &middot; tartalomkezelés</p>
+                <p class="text-sm text-white/50 mt-1">Okányi Biliárd Klub &middot; tartalomkezelés</p>
             </div>
 
             <!-- Bejelentkező kártya -->

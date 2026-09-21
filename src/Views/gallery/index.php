@@ -2,12 +2,15 @@
 /**
  * Galéria - Album lista nézet
  *
- * Reszponzív rács: 1 oszlop mobil, 2 tablet, 3 asztali (Requirement 7.1).
- * Az album kártyák borítóképe hoverre finoman nagyít.
+ * Minden album a borítóképével jelenik meg, alatta a névvel és a dobogóval.
+ * A kártyára kattintva nyílik meg az album oldala, ahol a kép nagyban, a
+ * helyezettek pedig mellette olvashatók.
  *
- * @var array $albums Albumok tömbje (id, name, image_count, cover_image_url)
+ * Reszponzív rács: 1 oszlop mobil, 2 tablet, 3 asztali.
+ *
+ * @var array $albums Albumok (id, name, cover_url, cover_alt, placements)
  */
-$totalImages = array_sum(array_map(static fn($a) => (int)($a['image_count'] ?? 0), $albums));
+$placementLimit = \App\Services\GalleryService::LIST_PLACEMENT_LIMIT;
 ?>
 
 <!-- Oldalfejléc -->
@@ -18,14 +21,15 @@ $totalImages = array_sum(array_map(static fn($a) => (int)($a['image_count'] ?? 0
     </p>
     <div class="flex flex-wrap items-end justify-between gap-4">
         <h1 class="text-3xl md:text-[2.5rem] font-bold tracking-tightest text-billiard-green-900 rule-gold">
-            Albumok
+            Versenyalbumok
         </h1>
         <?php if (!empty($albums)): ?>
-            <p class="text-sm text-sand-500 pb-1">
-                <?= count($albums) ?> album &middot; <?= $totalImages ?> kép
-            </p>
+            <p class="text-sm text-sand-500 pb-1"><?= count($albums) ?> album</p>
         <?php endif; ?>
     </div>
+    <p class="text-sand-600 mt-4 max-w-reading leading-relaxed">
+        Kattints egy albumra: a kép nagyban jelenik meg, mellette a verseny helyezettjeivel.
+    </p>
 </header>
 
 <?php if (empty($albums)): ?>
@@ -37,7 +41,7 @@ $totalImages = array_sum(array_map(static fn($a) => (int)($a['image_count'] ?? 0
         </span>
         <p class="font-semibold text-sand-900">Jelenleg nincsenek albumok</p>
         <p class="text-sm text-sand-500 mt-1 max-w-sm">
-            Az eseményekről készült fotók albumokba rendezve fognak itt megjelenni.
+            A versenyekről készült fotók és a helyezettek itt fognak megjelenni.
         </p>
     </div>
 
@@ -49,12 +53,13 @@ $totalImages = array_sum(array_map(static fn($a) => (int)($a['image_count'] ?? 0
 
                     <!-- Borítókép -->
                     <div class="relative aspect-[4/3] overflow-hidden bg-sand-200">
-                        <?php if (!empty($album['cover_image_url'])): ?>
-                            <img src="<?= e($album['cover_image_url']) ?>"
-                                 alt="<?= e($album['name']) ?> borítókép"
+                        <?php if (!empty($album['cover_url'])): ?>
+                            <img src="<?= e($album['cover_url']) ?>"
+                                 alt="<?= e($album['cover_alt']) ?>"
                                  class="cover-zoom w-full h-full object-cover"
+                                 width="400" height="300"
                                  onerror="this.onerror=null;this.src='/assets/images/placeholder.svg';this.classList.add('error-placeholder');"
-                                 loading="lazy">
+                                 loading="lazy" decoding="async">
                         <?php else: ?>
                             <div class="w-full h-full grid place-items-center bg-sand-100 text-sand-400">
                                 <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24" aria-hidden="true">
@@ -63,28 +68,49 @@ $totalImages = array_sum(array_map(static fn($a) => (int)($a['image_count'] ?? 0
                             </div>
                         <?php endif; ?>
 
-                        <!-- Képszám jelvény a borítón -->
-                        <span class="absolute bottom-3 right-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-billiard-green-950/75 text-white text-xs font-semibold backdrop-blur-sm">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159M2.25 18h19.5"/>
+                        <!-- Nagyítás jelzése a borítón -->
+                        <span class="absolute bottom-3 right-3 grid place-items-center w-9 h-9 rounded-full bg-billiard-green-950/70 text-white backdrop-blur-sm" aria-hidden="true">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6"/>
                             </svg>
-                            <?= (int)$album['image_count'] ?>
                         </span>
                     </div>
 
                     <!-- Album adatok -->
-                    <div class="flex-1 flex items-center justify-between gap-3 p-5">
-                        <div class="min-w-0">
-                            <h2 class="font-semibold text-billiard-green-900 leading-snug clamp-2">
-                                <?= e($album['name']) ?>
-                            </h2>
-                            <p class="text-sm text-sand-500 mt-0.5">
-                                <?= (int)$album['image_count'] ?> kép
-                            </p>
-                        </div>
-                        <svg class="w-5 h-5 shrink-0 text-sand-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
-                        </svg>
+                    <div class="flex-1 flex flex-col p-5">
+                        <h2 class="font-semibold text-billiard-green-900 leading-snug clamp-2">
+                            <?= e($album['name']) ?>
+                        </h2>
+
+                        <?php if (!empty($album['placements'])): ?>
+                            <!-- Dobogó: a teljes névsor az album oldalán olvasható -->
+                            <ol class="mt-3 space-y-1.5">
+                                <?php foreach (array_slice($album['placements'], 0, $placementLimit) as $placement): ?>
+                                    <li class="flex items-center gap-2 text-sm">
+                                        <span class="grid place-items-center w-5 h-5 shrink-0 rounded-full text-[0.625rem] font-bold
+                                                     <?= $placement['position'] === 1 ? 'bg-billiard-gold-400 text-billiard-green-900' : 'bg-sand-200 text-sand-600' ?>">
+                                            <?= (int) $placement['position'] ?>
+                                        </span>
+                                        <span class="text-sand-700 truncate"><?= e($placement['player_name']) ?></span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ol>
+
+                            <?php if (count($album['placements']) > $placementLimit): ?>
+                                <p class="text-xs text-sand-500 mt-2">
+                                    +<?= count($album['placements']) - $placementLimit ?> további helyezett
+                                </p>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <p class="text-sm text-sand-500 mt-2">Helyezettek hamarosan</p>
+                        <?php endif; ?>
+
+                        <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-billiard-green-600 mt-4 pt-3 border-t border-sand-200">
+                            Album megnyitása
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                            </svg>
+                        </span>
                     </div>
                 </a>
             </article>

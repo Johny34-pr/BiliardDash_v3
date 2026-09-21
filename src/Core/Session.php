@@ -77,7 +77,7 @@ class Session
      * Csak a megjelenítéshez és azonosításhoz szükséges mezőket tárolja,
      * a jelszó hash soha nem kerül a sessionbe.
      *
-     * @param array{id:string, name:string, email:string, phone:string} $user
+     * @param array{id:string, name:string, email:string, phone:string, city?:string} $user
      */
     public static function loginUser(array $user): void
     {
@@ -86,6 +86,7 @@ class Session
             'name' => $user['name'],
             'email' => $user['email'],
             'phone' => $user['phone'] ?? '',
+            'city' => $user['city'] ?? '',
         ];
     }
 
@@ -97,7 +98,7 @@ class Session
     /**
      * A bejelentkezett felhasználó adatai, vagy null.
      *
-     * @return array{id:string, name:string, email:string, phone:string}|null
+     * @return array{id:string, name:string, email:string, phone:string, city:string}|null
      */
     public static function user(): ?array
     {

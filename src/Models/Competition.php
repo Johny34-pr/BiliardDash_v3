@@ -43,6 +43,16 @@ class Competition
     }
 
     /**
+     * A meghirdetett versenyek száma (a határidő még nem járt le).
+     */
+    public function countOpen(): int
+    {
+        return (int) $this->db
+            ->query('SELECT COUNT(*) FROM competitions WHERE registration_deadline > NOW()')
+            ->fetchColumn();
+    }
+
+    /**
      * Összes verseny lekérdezése dátum szerint csökkenő sorrendben.
      *
      * @return array<array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int, created_at:string, updated_at:string}>

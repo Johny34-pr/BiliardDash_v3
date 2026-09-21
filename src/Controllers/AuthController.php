@@ -10,6 +10,7 @@ use App\Core\Session;
 use App\Services\AuthService;
 use App\Services\CompetitionService;
 use App\Services\EmailService;
+use App\Services\RememberMeService;
 use App\Services\ValidationService;
 
 /**
@@ -23,6 +24,7 @@ class AuthController
     private AuthService $authService;
     private ValidationService $validationService;
     private CompetitionService $competitionService;
+    private RememberMeService $rememberMeService;
 
     public function __construct()
     {
@@ -32,6 +34,7 @@ class AuthController
         $this->authService = new AuthService($db);
         $this->validationService = new ValidationService();
         $this->competitionService = new CompetitionService($db, new EmailService($mailConfig));
+        $this->rememberMeService = new RememberMeService($db);
     }
 
     // =====================================================================
@@ -46,7 +49,7 @@ class AuthController
 
         $errors = [];
         $data = [];
-        $this->renderAuth('register', 'Regisztráció - Magyar Biliárd', $errors, $data);
+        $this->renderAuth('register', 'Regisztráció - Okányi Biliárd Klub', $errors, $data);
     }
 
     public function register(): void
@@ -59,6 +62,7 @@ class AuthController
             'name' => trim($_POST['name'] ?? ''),
             'email' => trim($_POST['email'] ?? ''),
             'phone' => trim($_POST['phone'] ?? ''),
+            'city' => trim($_POST['city'] ?? ''),
             'password' => $_POST['password'] ?? '',
             'passwordConfirm' => $_POST['password_confirm'] ?? '',
         ];
@@ -66,7 +70,7 @@ class AuthController
         $validator = $this->validationService->validateUserRegistration($data);
 
         if (!$validator->isValid()) {
-            $this->renderAuth('register', 'Regisztráció - Magyar Biliárd', $validator->getErrors(), $data);
+            $this->renderAuth('register', 'Regisztráció - Okányi Biliárd Klub', $validator->getErrors(), $data);
             return;
         }
 
@@ -75,6 +79,7 @@ class AuthController
                 $data['name'],
                 $data['email'],
                 $data['phone'],
+                $data['city'],
                 $data['password']
             );
         } catch (AppException $e) {
@@ -83,13 +88,13 @@ class AuthController
                 ? ['email' => $e->getMessage()]
                 : ['general' => 'A regisztráció nem sikerült. Kérjük, próbálja újra.'];
 
-            $this->renderAuth('register', 'Regisztráció - Magyar Biliárd', $errors, $data);
+            $this->renderAuth('register', 'Regisztráció - Okányi Biliárd Klub', $errors, $data);
             return;
         } catch (\Throwable $e) {
             error_log('[AuthController] Regisztrációs hiba: ' . $e->getMessage());
             $this->renderAuth(
                 'register',
-                'Regisztráció - Magyar Biliárd',
+                'Regisztráció - Okányi Biliárd Klub',
                 ['general' => 'A regisztráció nem sikerült. Kérjük, próbálja újra.'],
                 $data
             );
@@ -119,7 +124,7 @@ class AuthController
 
         $errors = [];
         $data = [];
-        $this->renderAuth('login', 'Belépés - Magyar Biliárd', $errors, $data);
+        $this->renderAuth('login', 'Belépés - Okányi Biliárd Klub', $errors, $data);
     }
 
     public function login(): void
@@ -136,7 +141,7 @@ class AuthController
         $validator = $this->validationService->validateUserLogin($data);
 
         if (!$validator->isValid()) {
-            $this->renderAuth('login', 'Belépés - Magyar Biliárd', $validator->getErrors(), $data);
+            $this->renderAuth('login', 'Belépés - Okányi Biliárd Klub', $validator->getErrors(), $data);
             return;
         }
 
@@ -146,7 +151,7 @@ class AuthController
             // Nem árulja el, hogy az e-mail vagy a jelszó volt hibás
             $this->renderAuth(
                 'login',
-                'Belépés - Magyar Biliárd',
+                'Belépés - Okányi Biliárd Klub',
                 ['general' => 'Hibás e-mail cím vagy jelszó'],
                 ['email' => $data['email']]
             );
@@ -154,12 +159,23 @@ class AuthController
         }
 
         Session::loginUser($user);
+
+        // Belépési adatok megjegyzése, ha a látogató kérte. A tokent a
+        // sütiben tároljuk, így a session lejárta után is visszaléptet.
+        if (!empty($_POST['remember'])) {
+            $this->rememberMeService->remember($user['id']);
+        }
+
         Session::flash('success', 'Sikeres belépés. Üdv, ' . $user['name'] . '!');
         redirect($this->pullRedirectTarget());
     }
 
     public function logout(): void
     {
+        // A megjegyzett belépés visszavonása ezen az eszközön: enélkül a
+        // következő látogatáskor a süti azonnal újra beléptetne.
+        $this->rememberMeService->forget();
+
         Session::logoutUser();
         Session::flash('success', 'Kiléptél a fiókodból.');
         redirect('/');
@@ -179,7 +195,7 @@ class AuthController
         $user = Session::user();
         $registrations = $this->competitionService->getRegistrationsByUser($user['id']);
 
-        $pageTitle = 'Fiókom - Magyar Biliárd';
+        $pageTitle = 'Fiókom - Okányi Biliárd Klub';
 
         ob_start();
         require __DIR__ . '/../Views/account/index.php';

@@ -45,17 +45,26 @@ class LinkTargetService
             ['title' => 'Főoldal (hírek)', 'value' => '/'],
             ['title' => 'Galéria', 'value' => '/galeria'],
             ['title' => 'Versenyek és nevezés', 'value' => '/nevezes'],
-            ['title' => 'Fórum', 'value' => '/forum'],
+            ['title' => 'Rólunk', 'value' => '/rolunk'],
+            ['title' => 'Emlékoldal', 'value' => '/emlekoldal'],
+            ['title' => 'Társhonlapok', 'value' => '/tarshonlapok'],
+            ['title' => 'Adatkezelési tájékoztató', 'value' => '/adatkezeles'],
         ];
 
-        foreach (
-            [
-                'Versenyek' => $this->competitionLinks(),
-                'Hírek' => $this->newsLinks(),
-                'Galéria albumok' => $this->albumLinks(),
-                'Fórum topikok' => $this->topicLinks(),
-            ] as $groupTitle => $items
-        ) {
+        $groups = [
+            'Versenyek' => $this->competitionLinks(),
+            'Hírek' => $this->newsLinks(),
+            'Galéria albumok' => $this->albumLinks(),
+        ];
+
+        // A fórum csak aktív modulként kerül a listába: kikapcsolt fórumra
+        // hivatkozva a szerkesztő törött linket szúrna be.
+        if (forumEnabled()) {
+            $list[] = ['title' => 'Fórum', 'value' => '/forum'];
+            $groups['Fórum topikok'] = $this->topicLinks();
+        }
+
+        foreach ($groups as $groupTitle => $items) {
             if ($items !== []) {
                 $list[] = ['title' => $groupTitle, 'menu' => $items];
             }

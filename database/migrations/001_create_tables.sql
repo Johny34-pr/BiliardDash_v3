@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Adatbázis séma
+-- Okányi Biliárd Klub weboldal - Adatbázis séma
 -- Migráció: 001_create_tables.sql
 -- Leírás: Alap táblák létrehozása (news, albums, images, competitions, registrations)
 -- Engine: InnoDB | Charset: utf8mb4 | Collation: utf8mb4_unicode_ci

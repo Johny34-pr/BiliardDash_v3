@@ -1,6 +1,6 @@
 {
-    "name": "magyar-billiard/website",
-    "description": "Magyar Biliárd közösségi weboldal - PHP MVC alkalmazás",
+    "name": "okanyi-biliard-klub/website",
+    "description": "Okányi Biliárd Klub közösségi weboldal - PHP MVC alkalmazás",
     "type": "project",
     "license": "MIT",
     "require": {

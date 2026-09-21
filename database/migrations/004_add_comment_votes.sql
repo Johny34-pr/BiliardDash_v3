@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Hozzászólások értékelése
+-- Okányi Biliárd Klub weboldal - Hozzászólások értékelése
 -- Migráció: 004_add_comment_votes.sql
 --
 -- Leírás:

@@ -1,5 +1,5 @@
 -- ============================================================================
--- Magyar Biliárd Weboldal - Fórum
+-- Okányi Biliárd Klub weboldal - Fórum
 -- Migráció: 003_create_comments.sql
 --
 -- Leírás:

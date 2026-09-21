@@ -13,9 +13,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Core\AppException;
+use App\Core\Database;
 use App\Core\Env;
 use App\Core\Router;
 use App\Core\Session;
+use App\Services\RememberMeService;
 
 // Környezeti változók betöltése a .env fájlból.
 // Ez a legelső lépés, hogy minden konfigurációs fájl számíthasson rá,
@@ -24,6 +26,23 @@ Env::load();
 
 // Session indítása
 Session::start();
+
+/*
+ * Megjegyzett belépés visszaállítása.
+ *
+ * Ha a látogató korábban kérte a belépési adatok megjegyzését, egy süti
+ * alapján itt léptetjük vissza - még a routing előtt, hogy a nézetek már
+ * bejelentkezett állapotot lássanak.
+ *
+ * Süti nélkül vagy meglévő bejelentkezéssel ez azonnal visszatér, ezért a
+ * szokásos kérésekben nem jelent adatbázis-terhelést. A hibát elnyeljük:
+ * egy hibás token nem akadályozhatja meg az oldal betöltését.
+ */
+try {
+    (new RememberMeService(Database::getConnection()))->restoreSession();
+} catch (\Throwable $e) {
+    error_log('[index] Megjegyzett belépés visszaállítása nem sikerült: ' . $e->getMessage());
+}
 
 try {
     // Router példányosítás

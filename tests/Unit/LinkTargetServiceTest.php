@@ -79,7 +79,24 @@ class LinkTargetServiceTest extends TestCase
         $this->assertContains('/', $values);
         $this->assertContains('/galeria', $values);
         $this->assertContains('/nevezes', $values);
-        $this->assertContains('/forum', $values);
+        $this->assertContains('/rolunk', $values);
+        $this->assertContains('/emlekoldal', $values);
+        $this->assertContains('/tarshonlapok', $values);
+        $this->assertContains('/adatkezeles', $values);
+    }
+
+    /**
+     * A fórum kapcsolható modul, és alapértelmezetten inaktív. Kikapcsolt
+     * állapotban az útvonalai 404-et adnak, ezért a szerkesztő sem
+     * ajánlhatja fel őket: egy beszúrt hivatkozás törött lenne.
+     */
+    public function testForumLinkIsOfferedOnlyWhenModuleEnabled(): void
+    {
+        $this->assertNotContains('/forum', $this->allValues($this->service->getLinkList()));
+
+        $this->setForumEnabled(true);
+
+        $this->assertContains('/forum', $this->allValues($this->service->getLinkList()));
     }
 
     public function testEmptyGroupsAreOmitted(): void
@@ -151,6 +168,9 @@ class LinkTargetServiceTest extends TestCase
 
     public function testVisibleTopicsAppear(): void
     {
+        // A topikok csak aktív fórum modul esetén hivatkozhatók
+        $this->setForumEnabled(true);
+
         $topic = $this->createTestTopic('Dákó ajánlás');
 
         $group = $this->group($this->service->getLinkList(), 'Fórum topikok');
@@ -158,6 +178,17 @@ class LinkTargetServiceTest extends TestCase
         $this->assertNotNull($group);
         $this->assertSame('Dákó ajánlás', $group['menu'][0]['title']);
         $this->assertSame('/forum/' . $topic['id'], $group['menu'][0]['value']);
+    }
+
+    /**
+     * Kikapcsolt fórumnál a topikok csoportja sem jelenik meg, még akkor
+     * sem, ha vannak látható topikok az adatbázisban.
+     */
+    public function testTopicGroupHiddenWhenForumDisabled(): void
+    {
+        $this->createTestTopic('Rejtve maradó topik');
+
+        $this->assertNull($this->group($this->service->getLinkList(), 'Fórum topikok'));
     }
 
     public function testHiddenTopicsAreNotOffered(): void

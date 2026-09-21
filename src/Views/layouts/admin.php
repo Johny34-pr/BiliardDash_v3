@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin layout - Magyar Biliárd Weboldal
+ * Admin layout - Okányi Biliárd Klub weboldal
  *
  * A publikus oldallal egységes design tokeneket használ (head partial).
  * A navigáció mobilon vízszintesen görgethető, így nem tör el az elrendezés.
@@ -19,8 +19,17 @@ $adminNav = [
     ['url' => '/admin/hirek',      'label' => 'Hírek',      'exact' => false],
     ['url' => '/admin/galeria',    'label' => 'Galéria',    'exact' => false],
     ['url' => '/admin/versenyek',  'label' => 'Versenyek',  'exact' => false],
-    ['url' => '/admin/forum',      'label' => 'Fórum',      'exact' => false],
+    ['url' => '/admin/oldalak',    'label' => 'Oldalak',    'exact' => false],
+    ['url' => '/admin/felhasznalok', 'label' => 'Felhasználók', 'exact' => false],
 ];
+
+// A fórum moderálása csak aktív modul esetén jelenik meg
+if (forumEnabled()) {
+    $adminNav[] = ['url' => '/admin/forum', 'label' => 'Fórum', 'exact' => false];
+}
+
+// A beállítások a lista végén: itt kapcsolhatók a modulok
+$adminNav[] = ['url' => '/admin/beallitasok', 'label' => 'Beállítások', 'exact' => false];
 ?>
 <!DOCTYPE html>
 <html lang="hu">
@@ -38,13 +47,9 @@ $adminNav = [
 
                 <!-- Márkajel + admin jelölés -->
                 <a href="/admin" class="flex items-center gap-2.5 shrink-0" aria-label="Admin áttekintés">
-                    <span class="grid place-items-center w-9 h-9 rounded-full bg-gradient-to-br from-billiard-gold-300 to-billiard-gold-500">
-                        <span class="grid place-items-center w-[18px] h-[18px] rounded-full bg-billiard-green-950">
-                            <span class="text-[10px] font-bold leading-none text-billiard-gold-300">8</span>
-                        </span>
-                    </span>
+                    <?php $brandMarkSize = 'w-9 h-9'; require __DIR__ . '/../partials/brand-mark.php'; ?>
                     <span class="flex flex-col leading-none gap-0.5">
-                        <span class="font-semibold tracking-tightest text-[1.0625rem]">Magyar Biliárd</span>
+                        <span class="font-semibold tracking-tightest text-[1.0625rem]">Okányi Biliárd Klub</span>
                         <span class="text-[0.6875rem] font-medium tracking-wider uppercase text-billiard-gold-300/70">Adminisztráció</span>
                     </span>
                 </a>
@@ -130,11 +135,12 @@ $adminNav = [
 
     <footer class="border-t border-sand-200 bg-white">
         <div class="container mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p class="text-xs text-sand-500">Magyar Biliárd &middot; Admin felület</p>
+            <p class="text-xs text-sand-500">Okányi Biliárd Klub &middot; Admin felület</p>
             <p class="text-xs text-sand-400">&copy; <?= date('Y') ?></p>
         </div>
     </footer>
 
-    <script src="/assets/js/app.js"></script>
+    <!-- defer: a szkript nem tartja fel a megjelenítést -->
+    <script src="<?= e(asset('js/app.js')) ?>" defer></script>
 </body>
 </html>

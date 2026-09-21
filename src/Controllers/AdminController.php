@@ -11,7 +11,11 @@ use App\Services\CommentService;
 use App\Services\NewsService;
 use App\Services\GalleryService;
 use App\Services\CompetitionService;
+use App\Services\AuthService;
 use App\Services\ImageService;
+use App\Services\PageService;
+use App\Services\RememberMeService;
+use App\Services\SettingsService;
 use App\Services\TopicService;
 use App\Services\ValidationService;
 
@@ -23,6 +27,10 @@ class AdminController
     private ValidationService $validationService;
     private CommentService $commentService;
     private TopicService $topicService;
+    private SettingsService $settingsService;
+    private PageService $pageService;
+    private AuthService $authService;
+    private RememberMeService $rememberMeService;
 
     public function __construct()
     {
@@ -35,6 +43,57 @@ class AdminController
         $this->validationService = new ValidationService();
         $this->commentService = new CommentService($db);
         $this->topicService = new TopicService($db, $this->commentService);
+        $this->settingsService = new SettingsService($db);
+        $this->pageService = new PageService($db);
+        $this->authService = new AuthService($db);
+        $this->rememberMeService = new RememberMeService($db);
+    }
+
+    // =========================================================================
+    // Oldalbeállítások
+    // =========================================================================
+
+    /**
+     * Kapcsolható funkciók áttekintése.
+     */
+    public function settings(): void
+    {
+        $this->requireAdmin();
+
+        $forumEnabled = $this->settingsService->isForumEnabled();
+        $pageTitle = 'Beállítások - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/settings.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Kapcsolható funkciók mentése.
+     *
+     * A jelölőmezők hiányzó értéke kikapcsolt állapotot jelent, ezért az
+     * isset() vizsgálat elég: a böngésző a bejelöletlen mezőt nem küldi el.
+     */
+    public function settingsUpdate(): void
+    {
+        $this->requireAdmin();
+
+        $forumEnabled = isset($_POST['forum_enabled']);
+        $wasEnabled = $this->settingsService->isForumEnabled();
+
+        $this->settingsService->setEnabled(SettingsService::FORUM_ENABLED, $forumEnabled);
+
+        if ($forumEnabled !== $wasEnabled) {
+            Session::flash('success', $forumEnabled
+                ? 'A fórum bekapcsolva: megjelenik a menüben, és elérhetők az útvonalai.'
+                : 'A fórum kikapcsolva: eltűnt a menüből, a tartalma megmaradt.');
+        } else {
+            Session::flash('success', 'A beállítások mentve.');
+        }
+
+        redirect('/admin/beallitasok');
     }
 
     /**
@@ -53,7 +112,7 @@ class AdminController
     public function loginForm(): void
     {
         $error = Session::getFlash('login_error');
-        $pageTitle = 'Admin Belépés - Magyar Biliárd';
+        $pageTitle = 'Admin Belépés - Okányi Biliárd Klub';
 
         require __DIR__ . '/../Views/admin/login.php';
     }
@@ -90,9 +149,11 @@ class AdminController
         $this->requireAdmin();
 
         try {
-            $newsCount = count($this->newsService->getLatestNews(1000));
-            $albumCount = count($this->galleryService->getAlbums());
-            $competitionCount = count($this->competitionService->getOpenCompetitions());
+            // Csak a darabszám kell, ezért COUNT lekérdezéssel kérjük -
+            // korábban a teljes tartalom betöltődött a megszámolásához
+            $newsCount = $this->newsService->countNews();
+            $albumCount = $this->galleryService->countAlbums();
+            $competitionCount = $this->competitionService->countOpenCompetitions();
         } catch (\Throwable $e) {
             error_log('[AdminController] Dashboard hiba: ' . $e->getMessage());
             $newsCount = 0;
@@ -100,7 +161,7 @@ class AdminController
             $competitionCount = 0;
         }
 
-        $pageTitle = 'Admin Dashboard - Magyar Biliárd';
+        $pageTitle = 'Admin Dashboard - Okányi Biliárd Klub';
 
         ob_start();
         require __DIR__ . '/../Views/admin/dashboard.php';
@@ -260,6 +321,245 @@ class AdminController
     }
 
     // =========================================================================
+    // Regisztrált felhasználók kezelése
+    // =========================================================================
+
+    /**
+     * A regisztrált fiókok listája.
+     */
+    public function userList(): void
+    {
+        $this->requireAdmin();
+
+        $users = $this->authService->getAllUsers();
+        $pageTitle = 'Felhasználók - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/users/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Fiók szerkesztő űrlapja.
+     */
+    public function userEdit(string $id): void
+    {
+        $this->requireAdmin();
+
+        $user = $this->authService->getUserById($id);
+
+        if ($user === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $errors = [];
+        $data = [
+            'name' => $user['name'],
+            'email' => $user['email'],
+            'phone' => $user['phone'],
+            'city' => $user['city'],
+        ];
+        $pageTitle = $user['name'] . ' szerkesztése - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/users/edit.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Fiók módosítása.
+     *
+     * A jelszó mező üresen hagyható: ilyenkor a meglévő jelszó marad
+     * érvényben. Új jelszó megadása minden megjegyzett belépést
+     * érvénytelenít, hogy egy korábbi süti ne léptessen be tovább.
+     */
+    public function userUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $user = $this->authService->getUserById($id);
+
+        if ($user === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $data = [
+            'name' => trim($_POST['name'] ?? ''),
+            'email' => trim($_POST['email'] ?? ''),
+            'phone' => trim($_POST['phone'] ?? ''),
+            'city' => trim($_POST['city'] ?? ''),
+            'password' => $_POST['password'] ?? '',
+            'passwordConfirm' => $_POST['password_confirm'] ?? '',
+        ];
+
+        $validator = $this->validationService->validateUserUpdate($data);
+        $errors = $validator->isValid() ? [] : $validator->getErrors();
+
+        if ($errors === []) {
+            try {
+                $this->authService->updateUser($id, $data['name'], $data['email'], $data['phone'], $data['city']);
+
+                if ($data['password'] !== '') {
+                    $this->authService->updatePassword($id, $data['password']);
+                    $this->rememberMeService->forgetAllForUser($id);
+                }
+
+                Session::flash('success', 'A fiók adatai mentve.');
+                redirect('/admin/felhasznalok');
+                return;
+            } catch (AppException $e) {
+                // Foglalt e-mail cím: a mező mellett jelezzük
+                $errors = $e->getCode() === AppException::DUPLICATE_ENTRY
+                    ? ['email' => $e->getMessage()]
+                    : ['general' => 'A mentés nem sikerült. Kérjük, próbálja újra.'];
+            } catch (\Throwable $e) {
+                error_log('[AdminController] Fiók mentési hiba: ' . $e->getMessage());
+                $errors = ['general' => 'A mentés nem sikerült. Kérjük, próbálja újra.'];
+            }
+        }
+
+        $pageTitle = $user['name'] . ' szerkesztése - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/users/edit.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Fiók törlése.
+     *
+     * A felhasználó nevezései megmaradnak, vendégnevezéssé válnak, így a
+     * szervező névsora nem csorbul. A megjegyzett belépéseit is eldobjuk.
+     */
+    public function userDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $user = $this->authService->getUserById($id);
+            $name = $user['name'] ?? 'A fiók';
+
+            $this->rememberMeService->forgetAllForUser($id);
+            $this->authService->deleteUser($id);
+
+            Session::flash('success', $name . ' fiókja törölve. A nevezései vendégnevezésként megmaradtak.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Fiók törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A fiók törlése nem sikerült.');
+        }
+
+        redirect('/admin/felhasznalok');
+    }
+
+    // =========================================================================
+    // Tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelési tájékoztató)
+    // =========================================================================
+
+    /**
+     * A szerkeszthető oldalak listája.
+     */
+    public function pageList(): void
+    {
+        $this->requireAdmin();
+
+        $pages = $this->pageService->getAllPages();
+        $pageTitle = 'Oldalak kezelése - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/pages/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Oldal szerkesztő űrlapja.
+     */
+    public function pageEdit(string $id): void
+    {
+        $this->requireAdmin();
+
+        $page = $this->pageService->getPageById($id);
+
+        if ($page === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $errors = [];
+        $data = [
+            'title' => $page['title'],
+            'content' => $page['content'],
+            'metaDescription' => $page['meta_description'] ?? '',
+        ];
+        $pageTitle = $page['title'] . ' szerkesztése - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/pages/edit.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Oldal mentése.
+     *
+     * A slug nem módosítható: az oldalak fix útvonalon élnek, és a menü
+     * közvetlenül ezekre hivatkozik.
+     */
+    public function pageUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $page = $this->pageService->getPageById($id);
+
+        if ($page === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $data = [
+            'title' => trim($_POST['title'] ?? ''),
+            // A tartalmat nem vágjuk körbe: a szerkesztő HTML-je szándékosan
+            // változatlanul kerül tárolásra, ahogy a híreknél is
+            'content' => $_POST['content'] ?? '',
+            'metaDescription' => trim($_POST['metaDescription'] ?? ''),
+        ];
+
+        $validator = $this->validationService->validatePage($data);
+
+        if (!$validator->isValid()) {
+            $errors = $validator->getErrors();
+            $pageTitle = $page['title'] . ' szerkesztése - Admin';
+
+            ob_start();
+            require __DIR__ . '/../Views/admin/pages/edit.php';
+            $content = ob_get_clean();
+
+            require __DIR__ . '/../Views/layouts/admin.php';
+            return;
+        }
+
+        $this->pageService->updatePage($id, $data['title'], $data['content'], $data['metaDescription']);
+        Session::flash('success', 'Az oldal sikeresen mentve!');
+        redirect('/admin/oldalak');
+    }
+
+    // =========================================================================
     // Galéria kezelés
     // =========================================================================
 
@@ -363,6 +663,179 @@ class AdminController
         }
 
         redirect('/admin/galeria');
+    }
+
+    // =========================================================================
+    // Album helyezettek
+    // =========================================================================
+
+    /**
+     * Egy album helyezettjeinek kezelése: lista, felvitel, szerkesztés.
+     *
+     * Egyetlen oldalon van a névsor és az űrlapok, mert az eredmény
+     * felvitele jellemzően egy munkamenetben történik, és így nem kell
+     * oldalak között ugrálni.
+     */
+    public function placementList(string $id): void
+    {
+        $this->requireAdmin();
+
+        $album = $this->galleryService->getAlbumView($id);
+
+        if ($album === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $images = $this->galleryService->getAlbumImages($id);
+        $placements = $album['placements'];
+        $cover = $album['cover'];
+        $albumData = $album['album'];
+
+        $errors = Session::getFlash('placement_errors') ?: [];
+        $editId = $_GET['szerkeszt'] ?? null;
+        $editing = $editId !== null ? $this->galleryService->getPlacementById($editId) : null;
+
+        // Csak ehhez az albumhoz tartozó helyezés szerkeszthető innen
+        if ($editing !== null && $editing['album_id'] !== $id) {
+            $editing = null;
+        }
+
+        $pageTitle = 'Helyezettek: ' . $albumData['name'] . ' - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/gallery/placements.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Új helyezett felvitele.
+     */
+    public function placementStore(string $id): void
+    {
+        $this->requireAdmin();
+
+        $data = [
+            'position' => trim($_POST['position'] ?? ''),
+            'playerName' => trim($_POST['playerName'] ?? ''),
+            'note' => trim($_POST['note'] ?? ''),
+        ];
+
+        $validator = $this->validationService->validatePlacement($data);
+
+        if (!$validator->isValid()) {
+            Session::flash('placement_errors', $validator->getErrors());
+            Session::flash('error', 'A helyezett rögzítése nem sikerült, ellenőrizd a mezőket.');
+            redirect("/admin/galeria/{$id}/helyezettek");
+            return;
+        }
+
+        try {
+            $this->galleryService->addPlacement(
+                $id,
+                (int) $data['position'],
+                $data['playerName'],
+                $data['note']
+            );
+            Session::flash('success', $data['playerName'] . ' felvéve a ' . (int) $data['position'] . '. helyre.');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Helyezett felvitel hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt a helyezett rögzítése során.');
+        }
+
+        redirect("/admin/galeria/{$id}/helyezettek");
+    }
+
+    /**
+     * Helyezett módosítása.
+     */
+    public function placementUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $placement = $this->galleryService->getPlacementById($id);
+
+        if ($placement === null) {
+            Session::flash('error', 'A helyezett nem található.');
+            redirect('/admin/galeria');
+            return;
+        }
+
+        $albumId = $placement['album_id'];
+
+        $data = [
+            'position' => trim($_POST['position'] ?? ''),
+            'playerName' => trim($_POST['playerName'] ?? ''),
+            'note' => trim($_POST['note'] ?? ''),
+        ];
+
+        $validator = $this->validationService->validatePlacement($data);
+
+        if (!$validator->isValid()) {
+            Session::flash('placement_errors', $validator->getErrors());
+            Session::flash('error', 'A módosítás nem sikerült, ellenőrizd a mezőket.');
+            redirect("/admin/galeria/{$albumId}/helyezettek?szerkeszt={$id}");
+            return;
+        }
+
+        try {
+            $this->galleryService->updatePlacement(
+                $id,
+                (int) $data['position'],
+                $data['playerName'],
+                $data['note']
+            );
+            Session::flash('success', 'A helyezett módosítva.');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Helyezett módosítás hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt a módosítás során.');
+        }
+
+        redirect("/admin/galeria/{$albumId}/helyezettek");
+    }
+
+    /**
+     * Helyezett törlése.
+     */
+    public function placementDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $albumId = $this->galleryService->deletePlacement($id);
+            Session::flash('success', 'A helyezett törölve.');
+            redirect("/admin/galeria/{$albumId}/helyezettek");
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Helyezett törlés hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt a törlés során.');
+            redirect('/admin/galeria');
+        }
+    }
+
+    /**
+     * Album borítóképének kijelölése.
+     *
+     * A galéria az albumokat a borítóképükkel jelöli, ezért a szervezőnek
+     * választania kell tudnia, melyik kép kerüljön a lista élére.
+     */
+    public function albumSetCover(string $id): void
+    {
+        $this->requireAdmin();
+
+        $imageId = $_POST['image_id'] ?? '';
+
+        try {
+            $this->galleryService->setCoverImage($id, $imageId);
+            Session::flash('success', 'A borítókép beállítva.');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Borítókép beállítás hiba: ' . $e->getMessage());
+            Session::flash('error', 'A borítókép beállítása nem sikerült.');
+        }
+
+        redirect("/admin/galeria/{$id}/helyezettek");
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Services\EmailService;
 use App\Services\GalleryService;
 use App\Services\ImageService;
 use App\Services\NewsService;
+use App\Services\PageService;
 use App\Services\TopicService;
 
 /**
@@ -40,6 +41,7 @@ class SitemapController
     private GalleryService $galleryService;
     private CompetitionService $competitionService;
     private TopicService $topicService;
+    private PageService $pageService;
 
     public function __construct()
     {
@@ -47,6 +49,7 @@ class SitemapController
 
         $this->newsService = new NewsService($db);
         $this->galleryService = new GalleryService($db, new ImageService());
+        $this->pageService = new PageService($db);
 
         // A nevezési e-maileket itt nem küldünk, de a service konstruktora
         // megkívánja a levelezőt, ezért a valós konfigurációval adjuk át.
@@ -68,6 +71,7 @@ class SitemapController
     {
         $urls = array_merge(
             $this->staticUrls(),
+            $this->pageUrls(),
             $this->newsUrls(),
             $this->galleryUrls(),
             $this->competitionUrls(),
@@ -129,12 +133,51 @@ class SitemapController
      */
     private function staticUrls(): array
     {
-        return [
+        $urls = [
             $this->url('/', null, 'daily', '1.0'),
             $this->url('/galeria', null, 'weekly', '0.8'),
             $this->url('/nevezes', null, 'daily', '0.9'),
-            $this->url('/forum', null, 'daily', '0.7'),
+            $this->url('/tarshonlapok', null, 'yearly', '0.4'),
+            $this->url('/adatkezeles', null, 'yearly', '0.2'),
         ];
+
+        // A kikapcsolt fórum útvonalai 404-et adnak, ezért nem kerülhetnek
+        // az oldaltérképbe: a kereső hibás hivatkozásként jelezné őket.
+        if (forumEnabled()) {
+            $urls[] = $this->url('/forum', null, 'daily', '0.7');
+        }
+
+        return $urls;
+    }
+
+    /**
+     * Szerkeszthető tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelés).
+     *
+     * A lastmod a tartalom utolsó módosítása, így a kereső a szöveg
+     * átírása után újra bejárja az oldalt.
+     *
+     * @return array<array{loc:string, lastmod:?string, changefreq:string, priority:string}>
+     */
+    private function pageUrls(): array
+    {
+        $urls = [];
+
+        foreach ($this->pageService->getAllPages() as $page) {
+            // Az adatkezelési tájékoztató fix útvonalon már szerepel a
+            // statikus listában, ezért itt kimarad
+            if ($page['slug'] === 'adatkezeles') {
+                continue;
+            }
+
+            $urls[] = $this->url(
+                '/' . $page['slug'],
+                $page['updated_at'] ?? $page['created_at'],
+                'monthly',
+                '0.6'
+            );
+        }
+
+        return $urls;
     }
 
     /**
@@ -230,6 +273,11 @@ class SitemapController
      */
     private function forumUrls(): array
     {
+        // Kikapcsolt modul: nincs elérhető topik
+        if (!forumEnabled()) {
+            return [];
+        }
+
         $urls = [];
 
         foreach ($this->topicService->getVisibleTopics(self::MAX_PER_TYPE) as $topic) {

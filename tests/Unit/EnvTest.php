@@ -87,11 +87,11 @@ class EnvTest extends TestCase
     public function testStripsSurroundingQuotes(): void
     {
         $this->remember('ENVTEST_DOUBLE', 'ENVTEST_SINGLE');
-        $this->writeEnv("ENVTEST_DOUBLE=\"Magyar Biliárd\"\nENVTEST_SINGLE='Másik érték'\n");
+        $this->writeEnv("ENVTEST_DOUBLE=\"Okányi Biliárd Klub\"\nENVTEST_SINGLE='Másik érték'\n");
 
         Env::load($this->tempFile);
 
-        $this->assertSame('Magyar Biliárd', Env::get('ENVTEST_DOUBLE'));
+        $this->assertSame('Okányi Biliárd Klub', Env::get('ENVTEST_DOUBLE'));
         $this->assertSame('Másik érték', Env::get('ENVTEST_SINGLE'));
     }
 

@@ -9,6 +9,13 @@ use App\Core\Database;
 use App\Services\GalleryService;
 use App\Services\ImageService;
 
+/**
+ * Galéria: versenyalbumok borítóképpel és helyezettekkel.
+ *
+ * Egy album egy verseny eredményhirdetését jelenti. A lista az albumok
+ * borítóképét mutatja, az album oldala pedig a nagy képet a helyezettek
+ * névsorával egymás mellett.
+ */
 class GalleryController
 {
     private GalleryService $galleryService;
@@ -25,26 +32,11 @@ class GalleryController
      */
     public function index(): void
     {
-        $albums = $this->galleryService->getAlbums();
+        $albums = $this->galleryService->getAlbumsForListing();
 
-        // Borítókép URL-ek betöltése az albumokhoz
-        foreach ($albums as &$album) {
-            $album['cover_image_url'] = null;
-            if ($album['cover_image_id'] !== null) {
-                $images = $this->galleryService->getAlbumImages($album['id']);
-                foreach ($images as $image) {
-                    if ($image['id'] === $album['cover_image_id']) {
-                        $album['cover_image_url'] = '/' . $image['thumbnail_path'];
-                        break;
-                    }
-                }
-            }
-        }
-        unset($album);
-
-        $pageTitle = 'Galéria - Magyar Biliárd';
-        $metaDescription = 'Fotógaléria a magyar biliárd versenyeiről és eseményeiről. '
-            . 'Böngészd az albumokat versenyenként.';
+        $pageTitle = 'Galéria - Okányi Biliárd Klub';
+        $metaDescription = 'Versenyalbumok a klub versenyeiről: '
+            . 'a versenyek fotói és helyezettjei.';
 
         // Output buffering a layout-hoz
         ob_start();
@@ -55,35 +47,30 @@ class GalleryController
     }
 
     /**
-     * Album képei - GET /galeria/{albumId}
+     * Album oldala - GET /galeria/{albumId}
+     *
+     * Balra a nagy borítókép (kattintásra teljes méretben nagyítható),
+     * jobbra a verseny helyezettjei. A bezárás visszavisz az albumokhoz.
      */
     public function show(string $albumId): void
     {
-        // Album adatok lekérdezése
-        $db = Database::getConnection();
-        $albumModel = new \App\Models\Album($db);
-        $album = $albumModel->findById($albumId);
+        $view = $this->galleryService->getAlbumView($albumId);
 
-        if ($album === null) {
+        if ($view === null) {
             throw AppException::notFound('Az album nem található.');
         }
 
-        $images = $this->galleryService->getAlbumImages($albumId);
+        $album = $view['album'];
+        $cover = $view['cover'];
+        $placements = $view['placements'];
 
-        // A címet nyersen adjuk át: az escape-elés a head partial dolga.
-        // Kétszeres e() hívásból korábban "&amp;" jelent meg a fülön.
-        $pageTitle = $album['name'] . ' - Galéria - Magyar Biliárd';
-        $imageCount = count($images);
-        $metaDescription = $imageCount > 0
-            ? sprintf('%s - %d fotó a magyar biliárd galériájában.', $album['name'], $imageCount)
-            : sprintf('%s album a magyar biliárd fotógalériájában.', $album['name']);
+        $pageTitle = $album['name'] . ' - Galéria - Okányi Biliárd Klub';
+        $metaDescription = $this->buildDescription($album, $placements);
 
-        // Megosztási kép: az album borítója, hogy a link az album saját
-        // fotójával jelenjen meg. A teljes méretű képet adjuk, mert a
-        // 200x200-as bélyegkép a közösségi kártyákon elmosódna.
-        $ogImage = $this->resolveCoverImage($album, $images);
+        // Megosztási kép: az album borítója, hogy a link a saját fotójával
+        // jelenjen meg a közösségi oldalakon
+        $ogImage = $cover !== null ? '/' . $cover['full_path'] : null;
 
-        // Output buffering a layout-hoz
         ob_start();
         require __DIR__ . '/../Views/gallery/show.php';
         $content = ob_get_clean();
@@ -92,27 +79,24 @@ class GalleryController
     }
 
     /**
-     * Az album megosztási képének kiválasztása.
+     * Oldalleírás az album adataiból.
      *
-     * Elsőként a beállított borítóképet keressük, ha az nem található
-     * (pl. időközben törölték), az album első képére esünk vissza.
-     * Kép nélküli albumnál null, ilyenkor a head partial a márkázott
-     * alapképet használja.
+     * A helyezettek nevei értékes keresési tartalmat adnak, ezért a dobogó
+     * bekerül a leírásba, ha van felvitt eredmény.
      *
-     * @param array<array{id:string, full_path:string}> $images
+     * @param array<array{position:int, player_name:string}> $placements
      */
-    private function resolveCoverImage(array $album, array $images): ?string
+    private function buildDescription(array $album, array $placements): string
     {
-        if ($images === []) {
-            return null;
+        if ($placements === []) {
+            return sprintf('%s - fotók a klub galériájában.', $album['name']);
         }
 
-        foreach ($images as $image) {
-            if ($image['id'] === $album['cover_image_id']) {
-                return '/' . $image['full_path'];
-            }
+        $names = [];
+        foreach (array_slice($placements, 0, 3) as $placement) {
+            $names[] = $placement['position'] . '. ' . $placement['player_name'];
         }
 
-        return '/' . $images[0]['full_path'];
+        return sprintf('%s helyezettjei: %s.', $album['name'], implode(', ', $names));
     }
 }

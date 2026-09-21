@@ -1,6 +1,6 @@
 <?php
 /**
- * Fiókmenü partial - Magyar Biliárd Weboldal
+ * Fiókmenü partial - Okányi Biliárd Klub weboldal
  *
  * Egyetlen belépési pont a kétféle azonosításhoz, hogy ne két párhuzamos
  * sáv jelenjen meg a fejlécben:
@@ -23,7 +23,9 @@ $user = Session::user();
 $buttonLabel = match (true) {
     $isUser => $user['name'],
     $isAdmin => 'Szervező',
-    default => 'Fiók',
+    // Kilépett állapotban a teendőt nevezzük meg, nem az elvont "Fiók"
+    // fogalmat: így egyértelmű, mi történik a gombra kattintva.
+    default => 'Belépés',
 };
 
 /** Névből monogram az avatarhoz */
@@ -37,7 +39,7 @@ $menuInitials = static function (string $name): string {
     return $letters !== '' ? $letters : '?';
 };
 ?>
-<div class="account-menu hidden md:block relative ml-2 pl-3 border-l border-white/15">
+<div class="hidden md:block relative ml-2 pl-3 border-l border-white/15">
 
     <button id="account-toggle" type="button"
             class="account-trigger nav-link"

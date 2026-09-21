@@ -7,7 +7,7 @@
  *
  * @var \App\Core\AppException|null $e
  */
-$pageTitle = '404 - Az oldal nem található | Magyar Biliárd';
+$pageTitle = '404 - Az oldal nem található | Okányi Biliárd Klub';
 
 // A hibaoldal nem tartalom: nem kerülhet a keresőindexbe
 $noIndex = true;
@@ -26,13 +26,9 @@ $noIndex = true;
     </div>
 
     <header class="relative container mx-auto px-4 py-6">
-        <a href="/" class="inline-flex items-center gap-2.5" aria-label="Magyar Biliárd - főoldal">
-            <span class="grid place-items-center w-9 h-9 rounded-full bg-gradient-to-br from-billiard-gold-300 to-billiard-gold-500">
-                <span class="grid place-items-center w-[18px] h-[18px] rounded-full bg-billiard-green-950">
-                    <span class="text-[10px] font-bold leading-none text-billiard-gold-300">8</span>
-                </span>
-            </span>
-            <span class="font-semibold tracking-tightest">Magyar Biliárd</span>
+        <a href="/" class="inline-flex items-center gap-2.5" aria-label="Okányi Biliárd Klub - főoldal">
+            <?php $brandMarkSize = 'w-9 h-9'; require __DIR__ . '/../partials/brand-mark.php'; ?>
+            <span class="font-semibold tracking-tightest">Okányi Biliárd Klub</span>
         </a>
     </header>
 
@@ -55,7 +51,7 @@ $noIndex = true;
     </main>
 
     <footer class="relative container mx-auto px-4 py-6 text-center text-xs text-white/40">
-        <p>&copy; <?= date('Y') ?> Magyar Biliárd. Minden jog fenntartva.</p>
+        <p>&copy; <?= date('Y') ?> Okányi Biliárd Klub. Minden jog fenntartva.</p>
     </footer>
 </body>
 </html>

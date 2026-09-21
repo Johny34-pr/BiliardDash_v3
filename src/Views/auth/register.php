@@ -81,6 +81,24 @@ $minPassword = AuthService::MIN_PASSWORD_LENGTH;
             <?php endif; ?>
         </div>
 
+        <!-- Település: a versenyzők területi megoszlásához kötelező adat -->
+        <div>
+            <label for="city" class="label">
+                Település <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+            </label>
+            <input type="text" id="city" name="city" maxlength="100"
+                   value="<?= e($data['city'] ?? '') ?>"
+                   required autocomplete="address-level2"
+                   placeholder="pl. Okány"
+                   class="field<?= isset($errors['city']) ? ' field-error' : '' ?>"
+                   <?= isset($errors['city']) ? 'aria-describedby="city-error" aria-invalid="true"' : 'aria-describedby="city-hint"' ?>>
+            <?php if (isset($errors['city'])): ?>
+                <p id="city-error" class="field-message" role="alert"><?= e($errors['city']) ?></p>
+            <?php else: ?>
+                <p id="city-hint" class="field-hint">Ahonnan versenyezni jársz.</p>
+            <?php endif; ?>
+        </div>
+
         <div class="pt-1 border-t border-sand-200"></div>
 
         <div>
@@ -113,11 +131,21 @@ $minPassword = AuthService::MIN_PASSWORD_LENGTH;
             <?php endif; ?>
         </div>
 
+        <!--
+            Adatkezelés: a fiók létrehozásával személyes adatokat adunk meg,
+            ezért a tájékoztató itt, a beküldés előtt érhető el.
+        -->
+        <p class="text-sm text-sand-500">
+            A fiók létrehozásával elfogadod, hogy az adataidat az
+            <a href="/adatkezeles" class="font-medium text-billiard-green-600 hover:underline">adatkezelési tájékoztatóban</a>
+            leírtak szerint kezeljük.
+        </p>
+
         <button type="submit" class="btn btn-primary w-full">Fiók létrehozása</button>
     </form>
 
     <p class="text-center text-sm text-sand-500 mt-6">
         Van már fiókod?
-        <a href="/belepes" class="font-semibold text-billiard-green-600 hover:underline">Léptem be</a>
+        <a href="/belepes" class="font-semibold text-billiard-green-600 hover:underline">Belépés</a>
     </p>
 </div>

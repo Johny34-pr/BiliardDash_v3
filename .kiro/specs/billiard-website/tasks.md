@@ -1,5 +1,9 @@
 # Implementation Plan: Magyar Biliárd Weboldal (PHP + MySQL)
 
+> **Két dolog azóta megváltozott.** A webhely neve **Okányi Biliárd Klub**
+> (itt még a tervezés kori "Magyar Biliárd" munkanév szerepel), a stíluslap
+> pedig nem CDN-ről töltődik: a `php tools/build-css.php` állítja elő előre.
+
 ## Overview
 
 Az implementáció egy egyszerű MVC architektúrájú PHP 8.1+ alkalmazást épít fel keretrendszer nélkül, MySQL 8.0+ adatbázissal, Tailwind CSS (CDN) frontenddel, és Apache mod_rewrite alapú URL routinggal. A fejlesztés inkrementális lépésekben halad: projekt struktúra → core réteg → adatbázis → szolgáltatások → kontrollerek → nézetek → admin felület → tesztek.

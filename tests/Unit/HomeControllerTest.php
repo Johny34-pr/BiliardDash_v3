@@ -31,6 +31,16 @@ class HomeControllerTest extends TestCase
             )
         ');
 
+        // A layout a navigációhoz megkérdezi a kapcsolható modulok állapotát.
+        // A tábla üresen marad, tehát a fórum kikapcsolt - ez az éles
+        // alapértelmezés is.
+        $this->pdo->exec('
+            CREATE TABLE site_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT
+            )
+        ');
+
         Database::setConnection($this->pdo);
 
         // Start session for layout (Session::getFlash uses $_SESSION)
@@ -126,7 +136,7 @@ class HomeControllerTest extends TestCase
         $output = ob_get_clean();
 
         $this->assertStringContainsString(
-            '<title>Magyar Biliárd - hírek, galéria és online versenynevezés</title>',
+            '<title>Okányi Biliárd Klub - hírek, galéria és online versenynevezés</title>',
             $output
         );
     }

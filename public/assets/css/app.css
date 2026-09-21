@@ -1,8 +1,12 @@
 /**
- * Magyar Biliárd Weboldal - Design rendszer
+ * Okányi Biliárd Klub weboldal - Design rendszer
  *
- * Tailwind CSS (CDN) kiegészítés. A design tokenek (színek, tipográfia)
- * a src/Views/partials/head.php fájlban vannak definiálva.
+ * A generált segédosztályok kézzel írt kiegészítése. A design tokenek
+ * (színek, tipográfia, árnyékok) a tools/css/tokens.php fájlban élnek, a
+ * segédosztályokat a `php tools/build-css.php` állítja elő.
+ *
+ * Ezt a fájlt a generátor nem írja felül: közvetlenül szerkeszthető, és a
+ * betöltési sorrend miatt felülírhatja a segédosztályokat.
  *
  * Tartalom:
  *   1. Alapok és tipográfia
