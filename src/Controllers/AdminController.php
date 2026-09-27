@@ -7,14 +7,19 @@ namespace App\Controllers;
 use App\Core\AppException;
 use App\Core\Database;
 use App\Core\Session;
+use App\Models\CompetitionNotification;
 use App\Services\CommentService;
 use App\Services\NewsService;
 use App\Services\GalleryService;
 use App\Services\CompetitionService;
 use App\Services\AuthService;
+use App\Services\EmailService;
 use App\Services\ImageService;
 use App\Services\PageService;
+use App\Services\NotificationService;
+use App\Services\RankingService;
 use App\Services\RememberMeService;
+use App\Services\SeasonService;
 use App\Services\SettingsService;
 use App\Services\TopicService;
 use App\Services\ValidationService;
@@ -31,6 +36,10 @@ class AdminController
     private PageService $pageService;
     private AuthService $authService;
     private RememberMeService $rememberMeService;
+    private SeasonService $seasonService;
+    private EmailService $emailService;
+    private NotificationService $notificationService;
+    private RankingService $rankingService;
 
     public function __construct()
     {
@@ -38,8 +47,8 @@ class AdminController
         $this->newsService = new NewsService($db);
         $this->galleryService = new GalleryService($db, new ImageService());
         $mailConfig = require __DIR__ . '/../../config/mail.php';
-        $emailService = new \App\Services\EmailService($mailConfig);
-        $this->competitionService = new CompetitionService($db, $emailService);
+        $this->emailService = new EmailService($mailConfig);
+        $this->competitionService = new CompetitionService($db, $this->emailService);
         $this->validationService = new ValidationService();
         $this->commentService = new CommentService($db);
         $this->topicService = new TopicService($db, $this->commentService);
@@ -47,6 +56,9 @@ class AdminController
         $this->pageService = new PageService($db);
         $this->authService = new AuthService($db);
         $this->rememberMeService = new RememberMeService($db);
+        $this->seasonService = new SeasonService($db);
+        $this->notificationService = new NotificationService($db, $this->emailService);
+        $this->rankingService = new RankingService($db);
     }
 
     // =========================================================================
@@ -61,6 +73,9 @@ class AdminController
         $this->requireAdmin();
 
         $forumEnabled = $this->settingsService->isForumEnabled();
+        $rankingEnabled = $this->settingsService->isRankingEnabled();
+        $broadcastUrl = (string) $this->settingsService->get(SettingsService::BROADCAST_URL, '');
+        $broadcastLabel = (string) $this->settingsService->get(SettingsService::BROADCAST_LABEL, '');
         $pageTitle = 'Beállítások - Admin';
 
         ob_start();
@@ -81,19 +96,510 @@ class AdminController
         $this->requireAdmin();
 
         $forumEnabled = isset($_POST['forum_enabled']);
-        $wasEnabled = $this->settingsService->isForumEnabled();
+        $rankingEnabled = isset($_POST['ranking_enabled']);
+        $forumWasEnabled = $this->settingsService->isForumEnabled();
+        $rankingWasEnabled = $this->settingsService->isRankingEnabled();
 
         $this->settingsService->setEnabled(SettingsService::FORUM_ENABLED, $forumEnabled);
+        $this->settingsService->setEnabled(SettingsService::RANKING_ENABLED, $rankingEnabled);
 
-        if ($forumEnabled !== $wasEnabled) {
-            Session::flash('success', $forumEnabled
-                ? 'A fórum bekapcsolva: megjelenik a menüben, és elérhetők az útvonalai.'
-                : 'A fórum kikapcsolva: eltűnt a menüből, a tartalma megmaradt.');
+        // A közvetítés címe szöveges beállítás: az üres érték azt jelenti,
+        // hogy a menüpont nem jelenik meg
+        $broadcastUrl = trim($_POST['broadcast_url'] ?? '');
+        $broadcastLabel = trim($_POST['broadcast_label'] ?? '');
+
+        // Érvénytelen sémát nem mentünk el: a menüben törött vagy veszélyes
+        // hivatkozás lenne belőle. A hibát jelezzük, a többi beállítás
+        // viszont mentődik - a szervező munkája nem veszik el.
+        $urlError = null;
+
+        if ($broadcastUrl !== '' && preg_match('#^https?://#i', $broadcastUrl) !== 1) {
+            $urlError = 'A közvetítés címe nem került mentésre: http:// vagy https:// kezdettel add meg.';
         } else {
-            Session::flash('success', 'A beállítások mentve.');
+            $this->settingsService->setValue(SettingsService::BROADCAST_URL, $broadcastUrl);
+        }
+
+        $this->settingsService->setValue(SettingsService::BROADCAST_LABEL, $broadcastLabel);
+
+        // A modulok állapotváltozását külön kimondjuk: annak van a
+        // legnagyobb következménye, mert menüpontok és útvonalak tűnnek el
+        $changes = [];
+
+        if ($forumEnabled !== $forumWasEnabled) {
+            $changes[] = $forumEnabled
+                ? 'A fórum bekapcsolva.'
+                : 'A fórum kikapcsolva, a tartalma megmaradt.';
+        }
+
+        if ($rankingEnabled !== $rankingWasEnabled) {
+            $changes[] = $rankingEnabled
+                ? 'A ranglista bekapcsolva.'
+                : 'A ranglista kikapcsolva, a pontszámok megmaradtak.';
+        }
+
+        Session::flash('success', $changes === []
+            ? 'A beállítások mentve.'
+            : implode(' ', $changes));
+
+        if ($urlError !== null) {
+            Session::flash('error', $urlError);
         }
 
         redirect('/admin/beallitasok');
+    }
+
+    // =========================================================================
+    // Szezonok
+    // =========================================================================
+
+    /**
+     * Szezonok kezelése: lista, létrehozás, szerkesztés egy oldalon.
+     *
+     * A szezon két helyen rendez - a galéria archívumában és a ranglistán -,
+     * ezért önálló felületet kap. Egy oldal elég hozzá: kevés szezon van, és
+     * a műveletek (aktuálisra jelölés, archiválás) egy kattintásosak.
+     */
+    public function seasonList(): void
+    {
+        $this->requireAdmin();
+
+        $seasons = $this->seasonService->getAll();
+        $errors = Session::getFlash('season_errors') ?: [];
+        $editId = $_GET['szerkeszt'] ?? null;
+        $pageTitle = 'Szezonok - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/seasons/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Új szezon létrehozása.
+     */
+    public function seasonStore(): void
+    {
+        $this->requireAdmin();
+
+        $name = trim($_POST['name'] ?? '');
+        $startsOn = trim($_POST['starts_on'] ?? '');
+
+        if ($name === '') {
+            Session::flash('season_errors', ['name' => 'A szezon nevének megadása kötelező.']);
+            redirect('/admin/szezonok');
+            return;
+        }
+
+        try {
+            $this->seasonService->create($name, $startsOn, isset($_POST['is_current']));
+            Session::flash('success', 'A(z) "' . $name . '" szezon létrehozva.');
+        } catch (AppException $e) {
+            Session::flash('season_errors', ['name' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Szezon létrehozási hiba: ' . $e->getMessage());
+            Session::flash('error', 'A szezon létrehozása nem sikerült.');
+        }
+
+        redirect('/admin/szezonok');
+    }
+
+    /**
+     * Szezon adatainak módosítása.
+     */
+    public function seasonUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $name = trim($_POST['name'] ?? '');
+        $startsOn = trim($_POST['starts_on'] ?? '');
+
+        if ($name === '') {
+            Session::flash('season_errors', [$id => 'A szezon nevének megadása kötelező.']);
+            redirect('/admin/szezonok?szerkeszt=' . urlencode($id));
+            return;
+        }
+
+        try {
+            $this->seasonService->update($id, $name, $startsOn);
+            Session::flash('success', 'A szezon adatai mentve.');
+            redirect('/admin/szezonok');
+            return;
+        } catch (AppException $e) {
+            Session::flash('season_errors', [$id => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Szezon mentési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A szezon mentése nem sikerült.');
+        }
+
+        redirect('/admin/szezonok?szerkeszt=' . urlencode($id));
+    }
+
+    /**
+     * Az aktuális szezon kijelölése.
+     */
+    public function seasonMakeCurrent(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $this->seasonService->makeCurrent($id);
+            $season = $this->seasonService->getById($id);
+            Session::flash('success', 'A(z) "' . ($season['name'] ?? '') . '" szezon lett az aktuális.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Szezon kijelölési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A szezon kijelölése nem sikerült.');
+        }
+
+        redirect('/admin/szezonok');
+    }
+
+    /**
+     * Szezon archiválása vagy visszahelyezése.
+     *
+     * Az archivált szezon ranglistája a nyilvános archívumba kerül. A rejtett
+     * mező a kívánt ÁLLAPOTOT küldi, nem a váltás tényét, így egy kétszer
+     * elküldött űrlap sem fordítja vissza.
+     */
+    public function seasonToggleArchived(string $id): void
+    {
+        $this->requireAdmin();
+
+        $archived = ($_POST['archived'] ?? '') === '1';
+
+        try {
+            $this->seasonService->setArchived($id, $archived);
+            Session::flash('success', $archived
+                ? 'A szezon archiválva: a ranglistája az archívumba került.'
+                : 'A szezon visszakerült az aktív szezonok közé.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Szezon archiválási hiba: ' . $e->getMessage());
+            Session::flash('error', 'Az archiválás nem sikerült.');
+        }
+
+        redirect('/admin/szezonok');
+    }
+
+    /**
+     * Szezon törlése.
+     *
+     * A hozzá tartozó versenyek és albumok megmaradnak, csak szezon
+     * nélkülivé válnak - erre a nézet is figyelmeztet.
+     */
+    public function seasonDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $season = $this->seasonService->getById($id);
+            $this->seasonService->delete($id);
+            Session::flash(
+                'success',
+                'A(z) "' . ($season['name'] ?? '') . '" szezon törölve. A versenyek és albumok megmaradtak.'
+            );
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Szezon törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A szezon törlése nem sikerült.');
+        }
+
+        redirect('/admin/szezonok');
+    }
+
+    // =========================================================================
+    // Ranglista pontszámok
+    // =========================================================================
+
+    /**
+     * Versenyek listája a pontszámok szerkesztéséhez.
+     *
+     * A ranglista számolt eredmény, ezért itt nincs "újraszámolás" művelet:
+     * a pontszám mentése után a nyilvános állás már a friss értéket mutatja.
+     */
+    public function rankingList(): void
+    {
+        $this->requireAdmin();
+
+        $competitions = $this->competitionService->getAllCompetitions();
+
+        // Versenyenként a felvitt pontszámok száma, hogy a lista mutassa,
+        // hol van még dolga a szervezőnek
+        $entryCounts = [];
+
+        foreach ($competitions as $competition) {
+            $entryCounts[$competition['id']] = count(
+                $this->rankingService->getCompetitionEntries($competition['id'])
+            );
+        }
+
+        $currentSeason = $this->seasonService->getCurrent();
+        $pageTitle = 'Ranglista pontszámok - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/ranking/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Egy verseny pontszámainak szerkesztése.
+     */
+    public function rankingEdit(string $competitionId): void
+    {
+        $this->requireAdmin();
+
+        $competition = $this->competitionService->getCompetitionById($competitionId);
+
+        if ($competition === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $entries = $this->rankingService->getCompetitionEntries($competitionId);
+        $errors = Session::getFlash('ranking_errors') ?: [];
+        $data = Session::getFlash('ranking_data') ?: [];
+        $editId = $_GET['szerkeszt'] ?? null;
+
+        // Szerkesztésre csak ehhez a versenyhez tartozó pontszám nyitható
+        $editing = $editId !== null ? $this->rankingService->getEntry($editId) : null;
+
+        if ($editing !== null && $editing['competition_id'] !== $competitionId) {
+            $editing = null;
+        }
+
+        // A nevezők neve segít a felvitelben: a versenyen indulók listája
+        $registrants = array_column(
+            $this->competitionService->getPublicRegistrants($competitionId),
+            'full_name'
+        );
+
+        // Albumok az "átvétel a helyezettekből" művelethez. Csak azok
+        // hasznosak, amelyekben van felvitt dobogó.
+        $albums = array_values(array_filter(
+            $this->galleryService->getAlbumsForListing(null),
+            static fn(array $album): bool => $album['placements'] !== []
+        ));
+
+        $pageTitle = 'Pontszámok: ' . $competition['name'] . ' - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/ranking/edit.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Új pontszám felvitele egy versenyhez.
+     */
+    public function rankingEntryStore(string $competitionId): void
+    {
+        $this->requireAdmin();
+
+        $target = '/admin/ranglista/' . $competitionId;
+
+        $data = [
+            'playerName' => trim($_POST['player_name'] ?? ''),
+            'points' => trim($_POST['points'] ?? ''),
+            'place' => trim($_POST['place'] ?? ''),
+        ];
+
+        $errors = $this->validateRankingEntry($data);
+
+        if ($errors !== []) {
+            Session::flash('ranking_errors', $errors);
+            Session::flash('ranking_data', $data);
+            redirect($target);
+            return;
+        }
+
+        try {
+            $this->rankingService->addEntry(
+                $competitionId,
+                $data['playerName'],
+                (int) $data['points'],
+                $data['place'] === '' ? null : (int) $data['place']
+            );
+
+            Session::flash('success', $data['playerName'] . ' pontszáma felvéve.');
+        } catch (AppException $e) {
+            Session::flash('ranking_errors', ['playerName' => $e->getMessage()]);
+            Session::flash('ranking_data', $data);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Pontszám felvitel hiba: ' . $e->getMessage());
+            Session::flash('error', 'A pontszám felvitele nem sikerült.');
+        }
+
+        redirect($target);
+    }
+
+    /**
+     * Pontszám módosítása.
+     */
+    public function rankingEntryUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        $entry = $this->rankingService->getEntry($id);
+
+        if ($entry === null) {
+            Session::flash('error', 'A pontszám nem található.');
+            redirect('/admin/ranglista');
+            return;
+        }
+
+        $target = '/admin/ranglista/' . $entry['competition_id'];
+
+        $data = [
+            'playerName' => trim($_POST['player_name'] ?? ''),
+            'points' => trim($_POST['points'] ?? ''),
+            'place' => trim($_POST['place'] ?? ''),
+        ];
+
+        $errors = $this->validateRankingEntry($data);
+
+        if ($errors !== []) {
+            Session::flash('ranking_errors', $errors);
+            Session::flash('ranking_data', $data);
+            redirect($target . '?szerkeszt=' . urlencode($id));
+            return;
+        }
+
+        try {
+            $this->rankingService->updateEntry(
+                $id,
+                $data['playerName'],
+                (int) $data['points'],
+                $data['place'] === '' ? null : (int) $data['place']
+            );
+
+            Session::flash('success', 'A pontszám mentve. A ranglista azonnal követi a változást.');
+            redirect($target);
+            return;
+        } catch (AppException $e) {
+            Session::flash('ranking_errors', ['playerName' => $e->getMessage()]);
+            Session::flash('ranking_data', $data);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Pontszám mentési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A pontszám mentése nem sikerült.');
+        }
+
+        redirect($target . '?szerkeszt=' . urlencode($id));
+    }
+
+    /**
+     * Pontszám törlése.
+     */
+    public function rankingEntryDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $competitionId = $this->rankingService->deleteEntry($id);
+            Session::flash('success', 'A pontszám törölve.');
+            redirect('/admin/ranglista/' . $competitionId);
+            return;
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Pontszám törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A pontszám törlése nem sikerült.');
+        }
+
+        redirect('/admin/ranglista');
+    }
+
+    /**
+     * Pontszámok átvétele a galéria helyezettjeiből.
+     *
+     * A szervező a galériában amúgy is felviszi a dobogót, ezért a nevek
+     * kétszeri beírása felesleges munka. A pontokat a helyezésből
+     * származtatjuk, és minden érték utólag átírható.
+     *
+     * A már felvitt pontszámokat NEM írja felül: egy kézi javítást a
+     * másolás nem tehet tönkre.
+     */
+    public function rankingImport(string $competitionId): void
+    {
+        $this->requireAdmin();
+
+        $albumId = trim($_POST['album_id'] ?? '');
+        $target = '/admin/ranglista/' . $competitionId;
+
+        if ($albumId === '') {
+            Session::flash('error', 'Válaszd ki, melyik album helyezettjeit vesszük át.');
+            redirect($target);
+            return;
+        }
+
+        try {
+            $album = $this->galleryService->getAlbumView($albumId);
+
+            if ($album === null) {
+                Session::flash('error', 'Az album nem található.');
+                redirect($target);
+                return;
+            }
+
+            $result = $this->rankingService->importFromPlacements($competitionId, $album['placements']);
+
+            if ($result['added'] === 0 && $result['skipped'] === 0) {
+                Session::flash('error', 'Ebben az albumban nincs felvitt helyezett.');
+            } else {
+                $message = $result['added'] . ' pontszám átvéve a helyezettekből.';
+
+                if ($result['skipped'] > 0) {
+                    $message .= ' ' . $result['skipped']
+                        . ' játékos kimaradt, mert már szerepelt a listában.';
+                }
+
+                Session::flash('success', $message);
+            }
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Pontszám átvétel hiba: ' . $e->getMessage());
+            Session::flash('error', 'Az átvétel nem sikerült.');
+        }
+
+        redirect($target);
+    }
+
+    /**
+     * Pontszám űrlap validálása.
+     *
+     * A pont lehet negatív is (levonás), ezért csak a szám formátumát
+     * követeljük meg, nem azt, hogy pozitív legyen.
+     *
+     * @param array{playerName:string, points:string, place:string} $data
+     * @return array<string, string>
+     */
+    private function validateRankingEntry(array $data): array
+    {
+        $errors = [];
+
+        if ($data['playerName'] === '') {
+            $errors['playerName'] = 'A játékos nevének megadása kötelező.';
+        } elseif (mb_strlen($data['playerName']) > 100) {
+            $errors['playerName'] = 'A név legfeljebb 100 karakter lehet.';
+        }
+
+        if ($data['points'] === '') {
+            $errors['points'] = 'A pontszám megadása kötelező.';
+        } elseif (preg_match('/^-?\d{1,6}$/', $data['points']) !== 1) {
+            $errors['points'] = 'A pontszám egész szám legyen.';
+        }
+
+        if ($data['place'] !== '' && preg_match('/^\d{1,3}$/', $data['place']) !== 1) {
+            $errors['place'] = 'A helyezés pozitív egész szám legyen.';
+        }
+
+        return $errors;
     }
 
     /**
@@ -143,6 +649,12 @@ class AdminController
 
     /**
      * Admin dashboard - áttekintő oldal
+     *
+     * Itt fut le az esedékes nevezésindítási értesítések kiküldése is. Erre
+     * azért van szükség, mert a nevezés megnyílása időpont, nem művelet:
+     * nincs kérés, amihez hozzá lehetne kötni a levelet. Az ütemezett
+     * futtatás (tools/send-notifications.php) a rendes út, de cron nélkül is
+     * kimegy a levél - legkésőbb akkor, amikor a szervező belép.
      */
     public function dashboard(): void
     {
@@ -159,6 +671,23 @@ class AdminController
             $newsCount = 0;
             $albumCount = 0;
             $competitionCount = 0;
+        }
+
+        // A kiküldés hibája nem akadályozhatja meg az áttekintő megjelenítését
+        $sentNotices = [];
+
+        try {
+            $sentNotices = $this->notificationService->sendDueRegistrationOpenNotices();
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Esedékes értesítés hiba: ' . $e->getMessage());
+        }
+
+        if ($sentNotices !== []) {
+            $names = array_column($sentNotices, 'competition');
+            Session::flash(
+                'success',
+                'Kiküldtük a nevezésindítási értesítést: ' . implode(', ', $names) . '.'
+            );
         }
 
         $pageTitle = 'Admin Dashboard - Okányi Biliárd Klub';
@@ -332,6 +861,8 @@ class AdminController
         $this->requireAdmin();
 
         $users = $this->authService->getAllUsers();
+        // A visszaállított jelszó egyszer, kiemelten jelenik meg
+        $newPassword = Session::getFlash('new_password') ?: null;
         $pageTitle = 'Felhasználók - Admin';
 
         ob_start();
@@ -433,6 +964,53 @@ class AdminController
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Jelszó visszaállítása: új, véletlen jelszó beállítása.
+     *
+     * Akkor kell, ha a tag nem tud belépni. A generált jelszót a szervezőnek
+     * MEGMUTATJUK (flash üzenetben), mert neki kell átadnia a tagnak
+     * telefonon vagy személyesen. A tag kap egy értesítő levelet a
+     * változásról, de a jelszót SZÁNDÉKOSAN nem tartalmazza: az e-mail nem
+     * biztonságos csatorna.
+     *
+     * A művelet minden megjegyzett belépést érvénytelenít, különben egy régi
+     * süti az új jelszó mellett is beléptetne.
+     */
+    public function userResetPassword(string $id): void
+    {
+        $this->requireAdmin();
+
+        $user = $this->authService->getUserById($id);
+
+        if ($user === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        try {
+            $password = $this->authService->resetPassword($id);
+            $this->rememberMeService->forgetAllForUser($id);
+
+            // Külön flash kulcs: a nézet kiemelten, másolható módon jeleníti
+            // meg. A sima "success" üzenet között könnyen elsikkadna, pedig
+            // ez az egyetlen alkalom, amikor a jelszó látható.
+            Session::flash('new_password', [
+                'name' => $user['name'],
+                'password' => $password,
+            ]);
+
+            $this->emailService->sendPasswordResetNotice($user['email'], $user['name']);
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Jelszó visszaállítási hiba: ' . $e->getMessage());
+            Session::flash('error', 'A jelszó visszaállítása nem sikerült.');
+        }
+
+        redirect('/admin/felhasznalok');
     }
 
     /**
@@ -581,6 +1159,8 @@ class AdminController
         $errors = Session::getFlash('album_errors') ?: [];
         // Átnevezési hibák albumonként: [albumId => hibaüzenet]
         $renameErrors = Session::getFlash('rename_errors') ?: [];
+        // A szezon a galéria archívumának rendező elve
+        $seasonOptions = $this->seasonService->getOptions();
         $pageTitle = 'Galéria kezelése - Admin';
 
         ob_start();
@@ -617,10 +1197,13 @@ class AdminController
     }
 
     /**
-     * Album átnevezése
+     * Album adatainak módosítása: név és szezon.
      *
-     * A hibát az albumhoz kötve flasheljük (album_errors[albumId]), így a
+     * A hibát az albumhoz kötve flasheljük (rename_errors[albumId]), így a
      * lista több album közül is a megfelelő űrlapnál jelzi a problémát.
+     *
+     * A szezon a galéria archívumának rendező elve, ezért a névvel együtt
+     * egyetlen űrlapon állítható - nem érdemes két külön mentésre bontani.
      */
     public function albumUpdate(string $id): void
     {
@@ -638,10 +1221,40 @@ class AdminController
 
         try {
             $this->galleryService->renameAlbum($id, trim($data['name']));
-            Session::flash('success', 'Album sikeresen átnevezve!');
+            $this->galleryService->setAlbumSeason($id, $_POST['season_id'] ?? null);
+            Session::flash('success', 'Az album adatai mentve.');
         } catch (\Throwable $e) {
-            error_log('[AdminController] Album átnevezés hiba: ' . $e->getMessage());
-            Session::flash('error', 'Hiba történt az album átnevezése során.');
+            error_log('[AdminController] Album mentési hiba: ' . $e->getMessage());
+            Session::flash('error', 'Hiba történt az album mentése során.');
+        }
+
+        redirect('/admin/galeria');
+    }
+
+    /**
+     * Album archiválása vagy visszahelyezése.
+     *
+     * Az archiválás nem törlés: az album oldala változatlanul elérhető
+     * marad, csak az aktuális galériából kerül át az archívumba
+     * (/galeria/archiv), hogy ott a friss versenyek legyenek elöl.
+     */
+    public function albumToggleArchived(string $id): void
+    {
+        $this->requireAdmin();
+
+        // A rejtett mező a kívánt ÁLLAPOTOT küldi, nem a váltás tényét: így
+        // egy kétszer elküldött űrlap sem fordítja vissza a beállítást
+        $archived = ($_POST['archived'] ?? '') === '1';
+
+        try {
+            $name = $this->galleryService->setAlbumArchived($id, $archived);
+
+            Session::flash('success', $archived
+                ? '"' . $name . '" az archívumba került. Az album oldala továbbra is elérhető.'
+                : '"' . $name . '" visszakerült az aktuális albumok közé.');
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Album archiválás hiba: ' . $e->getMessage());
+            Session::flash('error', 'Az archiválás nem sikerült.');
         }
 
         redirect('/admin/galeria');
@@ -931,6 +1544,13 @@ class AdminController
         $this->requireAdmin();
 
         $competitions = $this->competitionService->getAllCompetitions();
+
+        // Melyik versenyről milyen értesítés ment már ki - egy lekérdezésből,
+        // hogy a lista ne fusson N+1-be
+        $sentNotifications = $this->notificationService->getSentKinds(
+            array_column($competitions, 'id')
+        );
+        $recipientCount = $this->notificationService->countRecipients();
         $pageTitle = 'Versenyek kezelése - Admin';
 
         ob_start();
@@ -955,6 +1575,9 @@ class AdminController
             'registrationOpensAt' => '',
             'registrationDeadline' => '',
         ];
+        // Az értesítés jelölőmező csak a létrehozó űrlapon jelenik meg
+        $showNotifyOption = true;
+        $recipientCount = $this->notificationService->countRecipients();
         $pageTitle = 'Új verseny - Admin';
 
         ob_start();
@@ -984,6 +1607,8 @@ class AdminController
 
         if (!$validator->isValid()) {
             $errors = $validator->getErrors();
+            $showNotifyOption = true;
+            $recipientCount = $this->notificationService->countRecipients();
             $pageTitle = 'Új verseny - Admin';
 
             ob_start();
@@ -994,9 +1619,97 @@ class AdminController
             return;
         }
 
-        $this->competitionService->createCompetition($data);
-        Session::flash('success', 'Verseny sikeresen létrehozva!');
+        $competition = $this->competitionService->createCompetition($data);
+
+        // Értesítés a tagoknak a versenykiírásról. A jelölőmező alapból be van
+        // jelölve, de a szervező kiveheti - például ha csak elmenti a
+        // vázlatot, és később hirdeti meg. A lista oldalon bármikor
+        // utólag is kiküldhető.
+        $message = 'Verseny sikeresen létrehozva!';
+
+        if (isset($_POST['notify'])) {
+            $result = $this->notificationService->notifyAnnounced($competition);
+            $message .= ' ' . $this->describeNotification($result);
+        }
+
+        Session::flash('success', $message);
         redirect('/admin/versenyek');
+    }
+
+    /**
+     * Értesítés kézi kiküldése egy versenyről.
+     *
+     * Akkor kell, ha a szervező a létrehozásnál nem küldte ki, vagy a
+     * nevezésindítási levelet szeretné azonnal elindítani, nem megvárva az
+     * ütemezett futtatást.
+     *
+     * A kétszeres kiküldést az adatbázis zárja ki, ezért itt elég a
+     * visszajelzést közvetíteni.
+     */
+    public function competitionNotify(string $id): void
+    {
+        $this->requireAdmin();
+
+        $competition = $this->competitionService->getCompetitionById($id);
+
+        if ($competition === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $kind = ($_POST['kind'] ?? '') === CompetitionNotification::KIND_REGISTRATION_OPEN
+            ? CompetitionNotification::KIND_REGISTRATION_OPEN
+            : CompetitionNotification::KIND_ANNOUNCED;
+
+        try {
+            $result = $kind === CompetitionNotification::KIND_REGISTRATION_OPEN
+                ? $this->notificationService->notifyRegistrationOpen($competition)
+                : $this->notificationService->notifyAnnounced($competition);
+
+            // Kihagyás és teljes kudarc esetén is HIBA-jelzés kell: siker
+            // színben megjelenő "nem ment ki" üzenetet a szervező átfutná
+            if ($result['skipped'] || $result['sent'] === 0) {
+                Session::flash('error', $this->describeNotification($result));
+            } else {
+                Session::flash('success', $this->describeNotification($result));
+            }
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Értesítés kiküldési hiba: ' . $e->getMessage());
+            Session::flash('error', 'Az értesítés kiküldése nem sikerült.');
+        }
+
+        redirect('/admin/versenyek');
+    }
+
+    /**
+     * Emberi nyelvű összegzés egy kiküldésről.
+     *
+     * A sikertelen címeket is kiírjuk, mert a szervezőnek tudnia kell, ha
+     * valakihez nem ért el a levél - így utána tud járni telefonon.
+     *
+     * @param array{sent:int, failed:int, skipped:bool, reason:?string} $result
+     */
+    private function describeNotification(array $result): string
+    {
+        if ($result['skipped']) {
+            return (string) $result['reason'];
+        }
+
+        // Nulla kiküldött levélnél a "kiküldve 0 tagnak" félrevezető lenne:
+        // a szervező azt hihetné, nincs kinek küldeni, holott a levelezés
+        // beállítása hibás. Ezért itt a konkrét okot mutatjuk.
+        if ($result['sent'] === 0) {
+            return 'Az értesítés NEM ment ki. ' . ($result['reason'] ?? 'Ismeretlen hiba.');
+        }
+
+        $message = 'Értesítés kiküldve ' . $result['sent'] . ' tagnak.';
+
+        if ($result['failed'] > 0) {
+            $message .= ' ' . ($result['reason'] ?? $result['failed'] . ' címre nem sikerült.');
+        }
+
+        return $message;
     }
 
     /**
@@ -1105,6 +1818,18 @@ class AdminController
         }
 
         $registrations = $this->competitionService->getRegistrations($id);
+
+        // A tagok listája a "nevezés hozzáadása" űrlap választójához. Azok a
+        // fiókok, amelyek már neveztek, nem jelennek meg: versenyenként egy
+        // fiók egyszer nevezhet, tehát felkínálni sem érdemes őket.
+        $registeredUserIds = array_filter(array_column($registrations, 'created_by_user_id'));
+        $users = array_values(array_filter(
+            $this->authService->getAllUsers(),
+            static fn(array $user): bool => !in_array($user['id'], $registeredUserIds, true)
+        ));
+
+        $errors = Session::getFlash('registration_errors') ?: [];
+        $data = Session::getFlash('registration_data') ?: [];
         $pageTitle = 'Nevezések: ' . $competition['name'] . ' - Admin';
 
         ob_start();
@@ -1112,6 +1837,90 @@ class AdminController
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Nevezés felvitele szervezői jogkörben, bárki nevében.
+     *
+     * Két mód van, a "mode" mező választja ki:
+     *
+     *   - "member": a klub egy tagja. Ilyenkor a nevezés a FIÓKJÁHOZ kötődik,
+     *     tehát a tag a saját fiókjában is látja, és a határidő lejártáig
+     *     maga visszavonhatja. Az adatok a fiókból jönnek.
+     *
+     *   - "guest": fiók nélküli játékos. Az adatokat a szervező írja be, a
+     *     nevezés vendégnevezés marad.
+     *
+     * A hibákat flash üzenetben adjuk vissza, mert a lista GET oldalára
+     * irányítunk - így az F5 nem küldi el újra a nevezést.
+     */
+    public function registrationStore(string $id): void
+    {
+        $this->requireAdmin();
+
+        $competition = $this->competitionService->getCompetitionById($id);
+
+        if ($competition === null) {
+            http_response_code(404);
+            require __DIR__ . '/../Views/errors/404.php';
+            return;
+        }
+
+        $mode = ($_POST['mode'] ?? '') === 'guest' ? 'guest' : 'member';
+        $target = "/admin/versenyek/{$id}/nevezesek";
+
+        try {
+            if ($mode === 'member') {
+                $userId = trim($_POST['user_id'] ?? '');
+                $user = $userId !== '' ? $this->authService->getUserById($userId) : null;
+
+                if ($user === null) {
+                    Session::flash('registration_errors', ['user_id' => 'Válassz ki egy tagot.']);
+                    redirect($target);
+                    return;
+                }
+
+                $this->competitionService->registerAsAdmin(
+                    $id,
+                    [
+                        'fullName' => $user['name'],
+                        'email' => $user['email'],
+                        'phone' => $user['phone'],
+                    ],
+                    $user['id']
+                );
+
+                Session::flash('success', $user['name'] . ' nevezése rögzítve.');
+                redirect($target);
+                return;
+            }
+
+            $data = [
+                'fullName' => trim($_POST['full_name'] ?? ''),
+                'email' => trim($_POST['email'] ?? ''),
+                'phone' => trim($_POST['phone'] ?? ''),
+            ];
+
+            $validator = $this->validationService->validateRegistration($data);
+
+            if (!$validator->isValid()) {
+                Session::flash('registration_errors', $validator->getErrors());
+                Session::flash('registration_data', $data);
+                redirect($target);
+                return;
+            }
+
+            $this->competitionService->registerAsAdmin($id, $data, null);
+
+            Session::flash('success', $data['fullName'] . ' nevezése rögzítve (fiók nélkül).');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Nevezés felvitel hiba: ' . $e->getMessage());
+            Session::flash('error', 'A nevezés felvitele nem sikerült.');
+        }
+
+        redirect($target);
     }
 
     /**

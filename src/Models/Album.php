@@ -15,14 +15,20 @@ class Album
     /**
      * Összes album lekérdezése létrehozási dátum szerint csökkenő sorrendben.
      *
-     * @return array<array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string}>
+     * A szervezői lista használja, ezért az archivált albumokat is adja -
+     * azokat is kezelni kell tudni.
+     *
+     * @return array<array{id:string, name:string, season_id:?string, is_archived:int, cover_image_id:?string, image_count:int, created_at:string, season_name:?string}>
      */
     public function findAll(): array
     {
         $stmt = $this->db->query(
-            'SELECT id, name, cover_image_id, image_count, created_at
-             FROM albums
-             ORDER BY created_at DESC'
+            'SELECT a.id, a.name, a.season_id, a.is_archived, a.cover_image_id,
+                    a.image_count, a.created_at,
+                    s.name AS season_name
+             FROM albums a
+             LEFT JOIN seasons s ON s.id = a.season_id
+             ORDER BY a.created_at DESC'
         );
 
         return $stmt->fetchAll();
@@ -37,6 +43,14 @@ class Album
     }
 
     /**
+     * Archivált albumok száma.
+     */
+    public function countArchived(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM albums WHERE is_archived = 1')->fetchColumn();
+    }
+
+    /**
      * Összes album a borítóképe adataival együtt, egyetlen lekérdezésben.
      *
      * A galéria listája minden albumot a borítóképével jelöl. Albumonkénti
@@ -46,18 +60,34 @@ class Album
      * A JOIN azért LEFT, mert az album lehet kép nélküli, és a
      * cover_image_id is mutathat már törölt képre.
      *
-     * @return array<array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string, cover_thumbnail_path:?string, cover_full_path:?string, cover_alt_text:?string}>
+     * @param bool|null $archived null = mindegyik, false = csak az aktuális,
+     *                            true = csak az archivált albumok
+     * @return array<array{id:string, name:string, season_id:?string, is_archived:int, cover_image_id:?string, image_count:int, created_at:string, season_name:?string, season_starts_on:?string, cover_thumbnail_path:?string, cover_medium_path:?string, cover_full_path:?string, cover_alt_text:?string}>
      */
-    public function findAllWithCover(): array
+    public function findAllWithCover(?bool $archived = null): array
     {
+        $where = match ($archived) {
+            true => 'WHERE a.is_archived = 1',
+            false => 'WHERE a.is_archived = 0',
+            null => '',
+        };
+
+        // Az archívumban a szezon szerinti csoportosítás a rendezés alapja,
+        // ezért a szezon kezdete elé kerül a created_at-nél
         $stmt = $this->db->query(
-            'SELECT a.id, a.name, a.cover_image_id, a.image_count, a.created_at,
+            'SELECT a.id, a.name, a.season_id, a.is_archived, a.cover_image_id,
+                    a.image_count, a.created_at,
+                    s.name AS season_name,
+                    s.starts_on AS season_starts_on,
                     i.thumbnail_path AS cover_thumbnail_path,
+                    i.medium_path AS cover_medium_path,
                     i.full_path AS cover_full_path,
                     i.alt_text AS cover_alt_text
              FROM albums a
              LEFT JOIN images i ON i.id = a.cover_image_id
-             ORDER BY a.created_at DESC'
+             LEFT JOIN seasons s ON s.id = a.season_id
+             ' . $where . '
+             ORDER BY s.starts_on DESC, a.created_at DESC'
         );
 
         return $stmt->fetchAll();
@@ -66,14 +96,17 @@ class Album
     /**
      * Egy album lekérdezése ID alapján.
      *
-     * @return array{id:string, name:string, cover_image_id:?string, image_count:int, created_at:string}|null
+     * @return array{id:string, name:string, season_id:?string, is_archived:int, cover_image_id:?string, image_count:int, created_at:string, season_name:?string}|null
      */
     public function findById(string $id): ?array
     {
         $stmt = $this->db->prepare(
-            'SELECT id, name, cover_image_id, image_count, created_at
-             FROM albums
-             WHERE id = :id'
+            'SELECT a.id, a.name, a.season_id, a.is_archived, a.cover_image_id,
+                    a.image_count, a.created_at,
+                    s.name AS season_name
+             FROM albums a
+             LEFT JOIN seasons s ON s.id = a.season_id
+             WHERE a.id = :id'
         );
         $stmt->execute([':id' => $id]);
 
@@ -161,6 +194,39 @@ class Album
 
         return $stmt->execute([
             ':cover_image_id' => $coverImageId,
+            ':id' => $id,
+        ]);
+    }
+
+    /**
+     * Album archiválása vagy visszahelyezése.
+     *
+     * Az archivált album nem tűnik el: a galéria archívumában marad
+     * elérhető, csak az aktuális listából kerül ki.
+     */
+    public function updateArchived(string $id, bool $archived): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE albums SET is_archived = :is_archived WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            ':is_archived' => $archived ? 1 : 0,
+            ':id' => $id,
+        ]);
+    }
+
+    /**
+     * Album szezonjának beállítása. A null a "nincs megadva" állapot.
+     */
+    public function updateSeason(string $id, ?string $seasonId): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE albums SET season_id = :season_id WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            ':season_id' => $seasonId,
             ':id' => $id,
         ]);
     }

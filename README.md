@@ -9,21 +9,23 @@ Az Okányi Biliárd Klub közösségi weboldala: hírek, fotógaléria és onlin
 - Hírek listázása a főoldalon (10 legfrissebb, fordított időrendben, 200 karakteres összefoglalóval)
 - Hír részletes nézet
 - Fotógaléria albumokba rendezve, borítóképpel és képszámmal
+- Archív galéria: a korábbi szezonok albumai szezon szerint csoportosítva
 - Lightbox képnézegető: nyíl- és billentyűzet-navigáció, mobilon swipe gesztus
 - Nyitott versenyek listája és online nevezési űrlap
 - Visszaigazoló e-mail sikeres nevezés után
+- Ranglista: a szezon pontverseny-állása versenyenkénti bontásban, archívummal
+- Közvetítés menüpont: külső élő adásra mutató hivatkozás
 - Reszponzív elrendezés három töréspontra (mobil / tablet / asztali)
-
 - Nyilvános nevezői lista versenyenként, belépés nélkül is
 
 **Felhasználói fiókok**
 
 - Regisztráció és belépés e-mail címmel
-- Nevezés magának előtöltött űrlappal, vagy más nevében
+- Nevezés **csak belépve, kizárólag a saját nevében** — a név és az e-mail cím a fiókból származik
 - Saját nevezések áttekintése és visszavonása a nevezési határidőig
-- A vendégnevezés (belépés nélküli) továbbra is működik
+- Saját jelszó megváltoztatása a fiók oldalán
 
-**Fórum**
+**Fórum** (kapcsolható modul, alapértelmezetten kikapcsolva)
 
 - Topikok nyitása és hozzászólás vendégként és belépve is
 - Csak egyszerű szöveg, korlátozott emojikészlettel
@@ -34,9 +36,16 @@ Az Okányi Biliárd Klub közösségi weboldala: hírek, fotógaléria és onlin
 
 - Session-alapú bejelentkezés
 - Hírek létrehozása, szerkesztése, törlése TinyMCE rich text szerkesztővel
-- Albumok létrehozása, képfeltöltés automatikus 200x200px bélyegkép-generálással
+- Albumok létrehozása, képfeltöltés bélyegkép (200×200 px) és éles közepes méret (max. 1200 px) generálásával
+- Albumok archiválása és szezonhoz rendelése
 - Versenyek kezelése és a nevezői lista megtekintése
+- Nevezés felvitele bárki nevében: meglévő taghoz kötve vagy vendégnevezésként
 - Nevezői lista exportálása CSV formátumban (UTF-8 BOM)
+- Ranglista pontszámainak szerkesztése; az állás azonnal újraszámolódik
+- Szezonok kezelése: létrehozás, aktuális kijelölése, archiválás
+- Körlevél a tagoknak a versenykiírásról és a nevezés megnyílásáról
+- Tagok jelszavának visszaállítása generált jelszóval
+- Kapcsolható modulok (fórum, ranglista) és a Közvetítés hivatkozása a beállítások oldalon
 
 ## Technológiai stack
 
@@ -115,11 +124,26 @@ nyilvántartásba a korábbi migrációkat, hogy ne próbálja újra alkalmazni 
 | `007` | Beállítások tábla és szerkeszthető tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelés) |
 | `008` | Galéria helyezettek (`album_placements`) |
 | `009` | Település a fiókokban és a „belépés megjegyzése" tokenek |
+| `010` | Szezonok, ranglista pontszámok, körlevél-napló, album-archiválás, közepes képméret |
+| `011` | Az adatkezelési tájékoztató kép- és videófelvételekről szóló szakasza |
 
 XAMPP alatt Windows-on a PHP a `C:\xampp\php\php.exe`, a MySQL kliens a
 `C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a
 migrációkat a phpMyAdmin felületén is be lehet importálni, sorszám szerinti
 sorrendben.
+
+**Meglévő galéria frissítése a `010` migráció után.** A migráció felveszi az
+`images.medium_path` oszlopot, de a korábban feltöltött képekhez még nincs
+közepes méret. A pótlást ez az eszköz végzi:
+
+```bash
+php tools/backfill-images.php --check    # mennyi a hátralévő, írás nélkül
+php tools/backfill-images.php            # a közepes méretek előállítása
+```
+
+Idempotens: csak ott dolgozik, ahol a `medium_path` üres, tehát bármikor
+újrafuttatható. Amíg nem fut le, a galéria a bélyegképet mutatja — nem törik
+el, csak lágyabb.
 
 ### 3. Környezeti változók beállítása
 
@@ -201,6 +225,34 @@ LoadModule rewrite_module modules/mod_rewrite.so
 
 Az alkalmazás ezután a `http://localhost/` címen érhető el.
 
+### 6. Időzített feladat az értesítésekhez (nem kötelező)
+
+A nevezés megnyílása **időpont, nem művelet**: nincs kérés, amihez a körlevél
+kiküldését hozzá lehetne kötni. Ezért két helyről fut:
+
+```bash
+php tools/send-notifications.php --check    # mi esedékes, kiküldés nélkül
+php tools/send-notifications.php            # az esedékes körlevelek kiküldése
+```
+
+Az eszközt érdemes napi gyakorisággal időzíteni. Linuxon crontabbal:
+
+```cron
+0 8 * * * /usr/bin/php /var/www/okanyibiliard/tools/send-notifications.php >> /var/log/okanyi-notifications.log 2>&1
+```
+
+Windowson a Feladatütemezőben, `C:\xampp\php\php.exe` programmal és
+`C:\xampp\htdocs\tools\send-notifications.php` argumentummal.
+
+Időzítés **nélkül sem marad ki** a kiküldés: az esedékes körleveleket a
+szervezői áttekintő (`/admin`) betöltése is elindítja, tehát legkésőbb akkor
+kimennek, amikor a szervező belép. Az időzítés csak azt javítja, hogy a levél
+közelebb essen a tényleges nyitási időponthoz.
+
+A kétszeres kiküldést a `competition_notifications` tábla
+`UNIQUE (competition_id, kind)` megkötése akadályozza meg, nem alkalmazásbeli
+ellenőrzés — így két párhuzamos futás sem tud ugyanarról két levelet küldeni.
+
 ## URL átírás (.htaccess)
 
 A projekt három `.htaccess` fájlt használ.
@@ -228,11 +280,16 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET | `/` | `HomeController@index` |
 | GET | `/hirek/{id}` | `NewsController@show` |
 | GET | `/galeria` | `GalleryController@index` |
+| GET | `/galeria/archiv` | `GalleryController@archive` |
 | GET | `/galeria/{albumId}` | `GalleryController@show` |
 | GET | `/nevezes` | `CompetitionController@index` |
 | GET | `/nevezes/{versenyId}` | `CompetitionController@showForm` |
 | GET | `/nevezes/{versenyId}/nevezok` | `CompetitionController@registrants` |
 | POST | `/nevezes/{versenyId}` | `CompetitionController@submitRegistration` |
+| GET | `/rolunk`, `/emlekoldal`, `/tarshonlapok`, `/adatkezeles` | `PageController@about`, `@memorial`, `@partners`, `@privacy` |
+| GET | `/ranglista` | `RankingController@index` (kapcsolható) |
+| GET | `/ranglista/archiv` | `RankingController@archive` (kapcsolható) |
+| GET | `/ranglista/{seasonId}` | `RankingController@show` (kapcsolható) |
 | GET | `/forum` | `ForumController@index` (topiklista) |
 | GET, POST | `/forum/uj` | `ForumController@createForm`, `@store` |
 | GET | `/forum/{id}` | `ForumController@show` |
@@ -248,6 +305,7 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET | `/kilepes` | `AuthController@logout` |
 | GET | `/fiok` | `AuthController@account` |
 | POST | `/fiok/nevezes/{id}/visszavonas` | `AuthController@deleteRegistration` |
+| POST | `/fiok/jelszo` | `AuthController@changePassword` |
 
 **Admin** (bejelentkezés szükséges, egyébként átirányít a `/admin/login` oldalra)
 
@@ -264,13 +322,36 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | POST | `/admin/galeria/uj` | `AdminController@albumStore` |
 | GET, POST | `/admin/galeria/{id}/feltolt` | `AdminController@imageUploadForm`, `@imageUpload` |
 | POST | `/admin/galeria/kep/{id}/torol` | `AdminController@imageDelete` |
+| GET, POST | `/admin/galeria/{id}/helyezettek` | `AdminController@placementList`, `@placementStore` |
+| POST | `/admin/galeria/{id}/boritokep` | `AdminController@albumSetCover` |
+| POST | `/admin/galeria/{id}/archivalas` | `AdminController@albumToggleArchived` |
+| POST | `/admin/galeria/{id}/szerkeszt` | `AdminController@albumUpdate` (név és szezon) |
 | GET | `/admin/versenyek` | `AdminController@competitionList` |
 | GET, POST | `/admin/versenyek/uj` | `AdminController@competitionCreate`, `@competitionStore` |
 | GET, POST | `/admin/versenyek/{id}/szerkeszt` | `AdminController@competitionEdit`, `@competitionUpdate` |
 | POST | `/admin/versenyek/{id}/torol` | `AdminController@competitionDelete` |
-| GET | `/admin/versenyek/{id}/nevezesek` | `AdminController@registrationList` |
+| POST | `/admin/versenyek/{id}/ertesites` | `AdminController@competitionNotify` (körlevél) |
+| GET, POST | `/admin/versenyek/{id}/nevezesek` | `AdminController@registrationList`, `@registrationStore` |
 | GET | `/admin/versenyek/{id}/export` | `AdminController@exportCsv` |
 | POST | `/admin/versenyek/nevezes/{id}/torol` | `AdminController@registrationDelete` |
+| GET | `/admin/felhasznalok` | `AdminController@userList` |
+| GET, POST | `/admin/felhasznalok/{id}/szerkeszt` | `AdminController@userEdit`, `@userUpdate` |
+| POST | `/admin/felhasznalok/{id}/jelszo` | `AdminController@userResetPassword` |
+| POST | `/admin/felhasznalok/{id}/torol` | `AdminController@userDelete` |
+| GET | `/admin/oldalak` | `AdminController@pageList` |
+| GET, POST | `/admin/oldalak/{id}/szerkeszt` | `AdminController@pageEdit`, `@pageUpdate` |
+| GET, POST | `/admin/beallitasok` | `AdminController@settings`, `@settingsUpdate` |
+| GET | `/admin/szezonok` | `AdminController@seasonList` |
+| POST | `/admin/szezonok/uj` | `AdminController@seasonStore` |
+| POST | `/admin/szezonok/{id}/szerkeszt` | `AdminController@seasonUpdate` |
+| POST | `/admin/szezonok/{id}/aktualis` | `AdminController@seasonMakeCurrent` |
+| POST | `/admin/szezonok/{id}/archivalas` | `AdminController@seasonToggleArchived` |
+| POST | `/admin/szezonok/{id}/torol` | `AdminController@seasonDelete` |
+| GET | `/admin/ranglista` | `AdminController@rankingList` (kapcsolható) |
+| GET, POST | `/admin/ranglista/{competitionId}` | `AdminController@rankingEdit`, `@rankingEntryStore` |
+| POST | `/admin/ranglista/{competitionId}/atvetel` | `AdminController@rankingImport` |
+| POST | `/admin/ranglista/pont/{id}/szerkeszt` | `AdminController@rankingEntryUpdate` |
+| POST | `/admin/ranglista/pont/{id}/torol` | `AdminController@rankingEntryDelete` |
 | GET | `/admin/forum` | `AdminController@topicList` |
 | POST | `/admin/forum/{id}/lezar` | `AdminController@topicToggleLocked` |
 | POST | `/admin/forum/{id}/elrejt` | `AdminController@topicToggleHidden` |
@@ -280,6 +361,16 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | POST | `/admin/forum/hozzaszolas/{id}/torol` | `AdminController@commentDelete` |
 
 Az útvonalak a `config/routes.php` fájlban vannak definiálva.
+
+**Kapcsolható modulok.** A fórum és a ranglista útvonalai csak akkor kerülnek
+regisztrálásra, ha a modul be van kapcsolva (`/admin/beallitasok`). Kikapcsolva
+a router `404`-et ad rájuk — ez erősebb védelem, mint a menüpont elrejtése,
+mert a mentett hivatkozáson keresztül sem érhető el a tartalom.
+
+> A `/galeria/archiv` és a `/ranglista/archiv` szándékosan a paraméteres minta
+> **előtt** van regisztrálva, különben az „archiv" szó album-, illetve
+> szezonazonosítóként értelmeződne. Ugyanez az oka, hogy a ranglista
+> pontszámainak útvonala `/admin/ranglista/pont/{id}/...`.
 
 ## Könyvtárstruktúra
 
@@ -293,34 +384,66 @@ Az útvonalak a `config/routes.php` fájlban vannak definiálva.
 │   ├── assets/js/              → app.js, gallery.js, editor.js
 │   └── uploads/
 │       ├── .htaccess           → Szkriptfuttatás tiltása (alkönyvtárakra is)
-│       ├── albums/{id}/        → full/ (eredeti) és thumb/ (200x200px)
+│       ├── albums/{id}/        → full/ (eredeti), medium/ (max 1200px),
+│       │                         thumb/ (200x200px)
 │       └── media/{év}/{hónap}/ → Szerkesztőbe feltöltött kép és dokumentum
 ├── src/
 │   ├── Controllers/            → Home, News, Gallery, Competition, Auth,
-│   │                             Forum, Admin, AdminMedia
+│   │                             Forum, Ranking, Page, Sitemap, Admin,
+│   │                             AdminMedia
 │   ├── Models/                 → News, Album, Image, Competition, Registration,
-│   │                             User, Topic, Comment, CommentVote
+│   │                             User, Topic, Comment, CommentVote, Season,
+│   │                             RankingEntry, CompetitionNotification,
+│   │                             Setting, Page, AlbumPlacement
 │   ├── Services/               → News, Gallery, Competition, Image, Email,
 │   │                             Validation, Auth, Topic, Comment,
-│   │                             Media, LinkTarget
+│   │                             Media, LinkTarget, Season, Ranking,
+│   │                             Notification, Settings, RememberMe
 │   ├── Views/
 │   │   ├── layouts/            → main.php (publikus), admin.php
 │   │   ├── partials/           → head.php (design tokenek), header.php,
 │   │   │                         navigation.php, account-menu.php,
-│   │   │                         admin-mode-bar.php, footer.php, tinymce.php,
-│   │   │                         editor-help.php
-│   │   ├── home|news|gallery|competitions/  → publikus nézetek
+│   │   │                         admin-mode-bar.php, brand-mark.php,
+│   │   │                         footer.php, tinymce.php, editor-help.php
+│   │   ├── home|news|competitions/  → publikus nézetek
+│   │   ├── gallery/            → index.php, show.php, archive.php,
+│   │   │                         _album-card.php (közös kártya)
+│   │   ├── ranking/            → index.php (szezon táblázat), archive.php
 │   │   ├── forum/              → index.php (topiklista), create.php, show.php
+│   │   ├── pages/              → about.php, memorial.php, partners.php,
+│   │   │                         privacy.php
 │   │   ├── auth/               → login.php, register.php
-│   │   ├── account/            → index.php (saját nevezések)
-│   │   ├── admin/              → admin nézetek (news, gallery, competitions)
+│   │   ├── account/            → index.php (saját nevezések + jelszó)
+│   │   ├── admin/              → admin nézetek (news, gallery, competitions,
+│   │   │                         users, pages, seasons, ranking, forum)
 │   │   └── errors/             → 404.php, 500.php
 │   └── Core/                   → Env, Database, Router, Session, Validator,
 │                                 AppException, helpers
-├── config/                     → database.php, app.php, mail.php, routes.php
-├── database/migrations/         → 001_create_tables.sql
+├── config/                     → database.php, app.php, mail.php, routes.php,
+│                                 contact.php
+├── database/migrations/        → 001 … 011 (sorszámozott SQL)
+├── tools/                      → migrate.php, build-css.php,
+│                                 generate-icons.php, backfill-images.php,
+│                                 send-notifications.php, css/
 └── tests/{Unit,Properties,Integration}/
 ```
+
+## Eszközök
+
+Mind CLI szkript, a projekt gyökeréből futtatva. Egyik sem igényel Node-ot.
+
+| Eszköz | Mit tesz | `--check` |
+| --- | --- | --- |
+| `tools/migrate.php` | a hátralévő migrációk alkalmazása | `--status` |
+| `tools/build-css.php` | a stíluslap előállítása a nézetekből | igen |
+| `tools/generate-icons.php` | ikonok és megosztási kép a `logo.png`-ből | nem |
+| `tools/backfill-images.php` | közepes képméret pótlása a régi képekhez | igen |
+| `tools/send-notifications.php` | az esedékes körlevelek kiküldése | igen |
+
+A `--check` mód mindenhol ugyanazt jelenti: felméri és kiírja, mi lenne a
+teendő, de **nem ír** — tehát élesben is biztonságosan futtatható. A
+`build-css.php` ezen felül 1-es kilépési kóddal áll le, ha feloldatlan
+osztálynevet talál, ezért folyamatos integrációba is beköthető.
 
 ## Nevezés és felhasználói fiókok
 
@@ -328,11 +451,11 @@ Kétféle azonosítás létezik, egymástól függetlenül. A `Session` osztály
 
 | | Látogatói fiók | Szervezői hozzáférés |
 | --- | --- | --- |
-| Mire szolgál | nevezés, fórum, saját nevezések | hírek, galéria, versenyek, fórum kezelése |
+| Mire szolgál | nevezés, fórum, saját nevezések | hírek, galéria, versenyek, ranglista, szezonok kezelése |
 | Belépés | `/belepes`, e-mail + jelszó | `/admin/login`, közös jelszó (e-mail nélkül) |
 | Kilépés | `/kilepes` | `/admin/logout` |
 | Session kulcs | `user` | `is_admin` |
-| Kötelező-e | nem, vendégként is működik minden | csak szervezőknek |
+| Kötelező-e | **a nevezéshez igen**, a böngészéshez nem | csak szervezőknek |
 
 A kettő nem zárja ki egymást: valaki lehet csak látogató, csak szervező, mindkettő, vagy egyik sem. Ezért a felület mindenhol **megnevezve** mutatja a két szerepet, nem általános „fiók" címke alatt:
 
@@ -341,17 +464,30 @@ A kettő nem zárja ki egymást: valaki lehet csak látogató, csak szervező, m
 - **Egységes szóhasználat:** a látogatói fióknál „Belépés" / „Kilépés a fiókból", a szervezőinél „Szervezői belépés" / „Kilépés a szervezői módból". Az admin felület kilépés gombja is „Szervezői kilépés", és jelzi, hogy a látogatói fiókot nem érinti.
 - **Kereszthivatkozások:** mindkét belépő oldal elmondja, mire szolgál, és hova kell menni a másikért.
 
-**Nevezés három módon.** A nevező adatai (`full_name`, `email`, `phone`) mindig magán a nevezésen vannak, ezért egy fiók több személynek is rögzíthet nevezést:
+**A nevezés regisztrációhoz kötött, és mindenki csak a saját nevében nevezhet.** Fiók nélkül a nevezési űrlap helyett a belépésre és a regisztrációra hívó kártya jelenik meg.
 
-| Mód | Belépés | `created_by_user_id` | Visszavonható |
+| Mód | Ki indítja | `created_by_user_id` | Visszavonható |
 | --- | --- | --- | --- |
-| Vendégnevezés | nem kell | `NULL` | nem (csak admin) |
-| Magamnak | igen | a fiók azonosítója | igen, a határidőig |
-| Másnak | igen | a *rögzítő* fiók azonosítója | igen, a határidőig |
+| Saját nevezés | belépett tag a `/nevezes/{id}` űrlapon | a fiók azonosítója | igen, a határidőig |
+| Tag nevében | szervező az admin felületen | a *tag* azonosítója | igen, a tag is visszavonhatja |
+| Vendégnevezés | szervező az admin felületen | `NULL` | csak szervező |
 
-A „magamnak" mód a fiók adataival tölti elő az űrlapot, a „másnak" üresen hagyja. A választás csak kényelmi előtöltés: a nevezés tulajdonosát mindig a `created_by_user_id` határozza meg.
+**A nevező neve és e-mail címe a FIÓKBÓL jön, nem az űrlapról.** A `registerSelf()`
+csak a telefonszámot olvassa a beküldött adatokból, mert az eltérhet a fiókban
+tárolttól. A név és az e-mail cím mezője meg sem jelenik az űrlapon, csak
+olvasható formában — és ha valaki mégis beküld ilyen mezőt, az nem érvényesül.
+Így nem lehet más nevében nevezni.
 
-**Kinek az e-mail-címe kerül a nevezésre.** Mindig a *nevezőé*, azaz aki játszani fog. Két okból: így a `UNIQUE (competition_id, email)` megkötés továbbra is helyesen szűri a kétszeres nevezést, és a visszaigazoló e-mail is ahhoz jut el, akit érint.
+A kétszeres nevezést két megkötés együtt akadályozza:
+`UNIQUE (competition_id, email)` és `UNIQUE (competition_id, created_by_user_id)`.
+Az első nélkül ugyanaz a fiók egy másik e-mail címmel kétszer nevezhetne; a
+másodikban a MySQL a `NULL`-okat egyedinek tekinti, ezért a szervezői
+vendégnevezésből több is lehet egy versenyen.
+
+**A szervező sem lépi át a határidőt.** A `registerAsAdmin()` ugyanúgy ellenőrzi
+a nyitódátumot és a nevezési határidőt. Ha a szervezőnek a határidő után kell
+felvinnie valakit, előbb a határidőt módosítja — így a névsor és a meghirdetett
+határidő nem mond ellent egymásnak.
 
 **Visszavonás szabályai.** Kétféle törlés létezik, szándékosan különböző szabályokkal:
 
@@ -369,11 +505,154 @@ Mindkét út csökkenti a `registrant_count`-ot, hogy konzisztens maradjon a val
 
 **Jelszavak.** `password_hash()` (bcrypt) tárolás, a hash soha nem kerül sessionbe vagy naplóba. A bejelentkezés nem árulja el, hogy az e-mail cím vagy a jelszó volt hibás, így nem lehet vele létező fiókokat felderíteni. Nincs e-mail-cím megerősítés.
 
-**Publikus útvonalak:** `/regisztracio`, `/belepes`, `/kilepes`, `/fiok`, valamint `POST /fiok/nevezes/{id}/visszavonas`.
+**Jelszó-visszaállítás.** Nincs önkiszolgáló „elfelejtett jelszó" folyamat; a
+visszaállítást a szervező végzi a `/admin/felhasznalok` oldalon. A rendszer
+12 karakteres jelszót generál, amelyből kimaradnak az összekeverhető karakterek
+(`0`/`O`, `1`/`l`/`I`), mert a jelszót jellemzően telefonon diktálják.
+
+A generált jelszó **kizárólag a szervezőnek jelenik meg**, egyetlen alkalommal,
+közvetlenül a visszaállítás után — az értesítő e-mail szándékosan nem
+tartalmazza, mert az e-mail nem biztonságos csatorna. A tag ezután a `/fiok`
+oldalon lecserélheti megjegyezhetőre; ehhez a jelenlegi jelszót is meg kell
+adnia, hogy egy eltulajdonított munkamenettel ne lehessen kizárni a tulajdonost.
+
+Mindkét művelet érvényteleníti a „belépés megjegyzése" tokeneket, így a régi
+süti nem léptet be.
+
+**Publikus útvonalak:** `/regisztracio`, `/belepes`, `/kilepes`, `/fiok`, valamint `POST /fiok/nevezes/{id}/visszavonas` és `POST /fiok/jelszo`.
 
 Az admin nevezői listája jelvénnyel mutatja, hogy egy nevezés vendégként vagy fiókkal érkezett.
 
 **Nyilvános nevezői lista.** A `/nevezes/{id}/nevezok` útvonal belépés nélkül is elérhető, és szándékosan **csak a nevezők nevét és a nevezés idejét** adja vissza. Az e-mail cím és a telefonszám személyes adat, ezért az kizárólag a szervező admin felületén látható. A két adatkört két külön szolgáltatásmetódus választja el: a nyilvános `getPublicRegistrants()` és az admin `getRegistrations()`.
+
+## Szezonok
+
+A szezon (`seasons`) két helyen rendez: a galéria archívumában és a ranglistán.
+Ezért önálló felülete van (`/admin/szezonok`), nem egy album vagy verseny
+mellékes beállítása.
+
+| Jelző | Jelentés |
+| --- | --- |
+| `is_current` | a futó évad. Ennek a ranglistája jelenik meg a `/ranglista` címen |
+| `is_archived` | lezárt évad. A `/ranglista/archiv` és a galéria archívuma listázza |
+| `starts_on` | ez adja a sorrendet — a név szerinti rendezés csak véletlenül helyes |
+
+**Az „aktuális" kizárólagos.** A `makeCurrent()` először minden szezonról leveszi
+a jelölést, és csak utána teszi rá a kiválasztottra. A két lépés szándékosan nem
+egy tranzakció: ha félbeszakad, a legrosszabb eset az, hogy egyik szezon sem
+aktuális — ez a felületen látszik és egy kattintással javítható. A „két aktuális
+szezon" viszont kétértelmű állapot lenne, amit semmi nem jelez.
+
+Az aktuális szezon **nem archiválható és nem törölhető** (`VALIDATION_ERROR`):
+előbb ki kell jelölni az utódját.
+
+**Album archiválása külön oszlop** (`albums.is_archived`), nem a szezonból
+számolt érték. Így a szervező egy régi szezon albumát szándékosan előtérben
+tarthatja, például egy jubileumi versenyét.
+
+## Galéria és képméretek
+
+Minden feltöltött képből három változat készül:
+
+| Változat | Méret | Hol jelenik meg |
+| --- | --- | --- |
+| `full/` | az eredeti, bájtra változatlan | a lightbox nagyítása |
+| `medium/` | leghosszabb oldal max. 1200 px, arányos | a galéria kártyái és az album oldala |
+| `thumb/` | 200×200 px, középre vágva | tartalék, ha a közepes méret hiányzik |
+
+A közepes méret azért kell, mert a 200 px-es bélyegkép egy 4:3-as, több száz
+pixel széles kártyára kifeszítve láthatóan lágy. A `createResized()`
+**nem vág** (megőrzi a képarányt) és **nem nagyít** (a korlát alatti képet
+változatlanul másolja, mert a felskálázás nem élesít).
+
+Ha az átméretezett fájl nagyobb lett az eredetinél — ez tömör, kevés színt
+használó PNG-nél előfordul —, akkor az eredetit másolja: így egyszerre lesz
+kevesebb a letöltés és több a képpont.
+
+A közepes méret előállításának hibája **nem hiúsítja meg a feltöltést**: a
+`medium_path` üresen marad, és a megjelenítés a bélyegképre esik vissza.
+
+## Ranglista
+
+A szezon pontversenyének állása, versenyenkénti bontásban. Minden sor egy
+játékos, minden oszlop egy verseny, a jobb szélen az összesítés. A táblázat
+mobilon vízszintesen görgethető, a játékos neve és a helyezése görgetés közben
+is látszik.
+
+**Az állás számolt, nem tárolt érték.** Nincs összeg-oszlop az adatbázisban: a
+`ranking_entries` sorai az egyetlen igazságforrás, és minden megjelenítés
+belőlük áll össze. Ezért a szervezői javítás **azonnal** érvényesül, külön
+újraszámoló művelet nélkül. A denormalizált összeg elcsúszhatna a részletektől,
+és egy kimaradt frissítés után csendben hibás lenne.
+
+| Művelet | Útvonal |
+| --- | --- |
+| Pontszám felvitele egy versenyen | `POST /admin/ranglista/{competitionId}` |
+| Helyezésekből átvétel | `POST /admin/ranglista/{competitionId}/atvetel` |
+| Pontszám módosítása | `POST /admin/ranglista/pont/{id}/szerkeszt` |
+| Pontszám törlése | `POST /admin/ranglista/pont/{id}/torol` |
+
+Egy játékos egy versenyen csak egyszer szerepelhet:
+`UNIQUE (competition_id, player_name)`.
+
+**Átvétel a galéria helyezettjeiből.** Ha egy verseny helyezettjei már fel vannak
+vezetve a galériában, az `importFromPlacements()` pontszámmá alakítja őket a
+következő kulcs szerint:
+
+| Helyezés | 1. | 2. | 3. | 4. | 5. | 6. | továbbiak |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Pont | 12 | 9 | 7 | 5 | 3 | 2 | 1 |
+
+Az átvétel csak kiindulópont: minden pontszám utólag szerkeszthető.
+
+**Holtverseny.** Azonos összpontszám esetén a játékosok ugyanazt a helyezést
+kapják, és a következő helyezés annyival ugrik, ahányan holtversenyben vannak.
+
+Az archívum a `/ranglista/archiv` címen listázza a lezárt szezonokat, a
+`/ranglista/{seasonId}` pedig egy konkrét szezon táblázatát adja „Archív szezon"
+jelvénnyel.
+
+## Körlevél a tagoknak
+
+A rendszer két alkalommal küld körlevelet minden regisztrált tagnak:
+
+| Fajta | Mikor | Indítás |
+| --- | --- | --- |
+| `announced` | új versenykiírás | a létrehozó űrlap jelölőmezője (alapból bejelölve), vagy a lista „Értesítés" gombja |
+| `registration_open` | a nevezés megnyílt | időzített feladat, vagy a szervezői áttekintő betöltése |
+
+**A kétszeres kiküldés ellen adatbázis szintű védelem van**, nem alkalmazásbeli
+ellenőrzés: a `competition_notifications` táblán `UNIQUE (competition_id, kind)`,
+és a kiküldés **jogának lefoglalása megelőzi magát a küldést**. Aki be tudja
+szúrni a sort, az küld; aki ütközik, az kihagyja. Egy „már kiment?" típusú
+alkalmazásbeli ellenőrzés két párhuzamos kérésnél elbukna.
+
+**Minden címzett külön levelet kap**, hogy senki ne lássa a többiek e-mail
+címét, és egy hibás cím ne szakítsa meg a sort. A sikertelen címek a PHP
+hibanaplóba kerülnek, a kiküldés eredménye (`recipient_count`, `failed_count`)
+pedig a naplótáblába.
+
+A versenyek listája oszlopban mutatja, melyik körlevél ment már ki, és melyik
+indítható még.
+
+## Kapcsolható modulok és a Közvetítés hivatkozás
+
+A `/admin/beallitasok` oldalon állítható:
+
+| Beállítás | Hatás |
+| --- | --- |
+| `forum_enabled` | a fórum menüpontja és **útvonalai**; kikapcsolva `404` |
+| `ranking_enabled` | a ranglista menüpontja és **útvonalai**; kikapcsolva `404` |
+| `broadcast_url` | a Közvetítés menüpont célja (külső cím) |
+| `broadcast_label` | a menüpont felirata, alapértelmezés: „Közvetítés" |
+
+**A Közvetítés szöveges beállítás, nem kapcsoló.** A menüpont akkor jelenik meg,
+ha van megadott cím — így nem állhat elő „bekapcsolva, de üres" állapot, ami
+törött menüpontot adna. A hivatkozás új lapon nyílik
+(`target="_blank" rel="noopener noreferrer"`).
+
+A cím sémáját a `getBroadcastLink()` ellenőrzi: csak `http` és `https` fogadható
+el, tehát egy `javascript:` kezdetű érték nem mentődik el.
 
 ## Fórum
 
@@ -474,7 +753,24 @@ php tools/generate-icons.php
 
 Az oldalon látható márkajelet a `src/Views/partials/brand-mark.php` adja — ugyanezt a képet mutatja a fejlécben, a láblécben, a szervezői felületen és a hibaoldalakon is. Méretezése a `$brandMarkSize` változóval állítható (pl. `'w-9 h-9'`).
 
-Az ikonok háttere törtfehér (`sand-50`), nem a márka sötétzöldje: a címer túlnyomóan kék arany kerettel, sötét alapon 16 pixelen összemosódna. A logó cseréjéhez elég felülírni a forrásfájlt és újra lefuttatni a generátort.
+**Kétféle logót kezel, felismerés alapján.** A generátor a kép sarkainak átlátszóságából dönti el, melyikről van szó, mert a kettőnek ellentétes kezelés kell:
+
+| Logófajta | Kezelés |
+| --- | --- |
+| Lebegő jelkép, átlátszó háttérrel (címer, embléma) | 80%-os kitöltés, körülötte levegő, alatta világos tábla |
+| Teljes vásznat kitöltő kép, saját opak háttérrel | 100%-os kitöltés, a lekerekített forma maszkként vágja a sarkokat |
+
+Ha egy teljes vásznat kitöltő logót 80%-on helyeznénk el, látható **kettős keret** lenne belőle: egy világos négyzet egy másik világos, lekerekített négyzet közepén. A felismerés miatt ez beállítás nélkül megoldódik, tehát a logó cseréje továbbra is egyetlen fájl felülírása.
+
+Az ikonok háttere törtfehér (`sand-50`), nem a márka sötétzöldje: sötét alapon egy világos hátterű logó 16 pixelen összemosódna. A mostani logó a saját opak hátterét hozza, ezért ez a szín csak tartalék — akkor lép életbe, ha a logót átlátszó hátterű változatra cserélik.
+
+> **A logó cseréje két lépés.** A forrásfájl (`public/assets/images/logo.png`)
+> felülírása után **le kell futtatni a `php tools/generate-icons.php`
+> parancsot**. Az oldalon látható márkajel azonnal frissül, mert a
+> `publicAsset()` a fájl módosítási idejét fűzi a címhez; a böngészőfül
+> ikonja, az iOS kezdőképernyő ikonja és a közösségi megosztás képe viszont
+> **generált fájl**, nem erre a képre hivatkozik, tehát magától nem változik.
+> Ez a leggyakoribb oka annak, ha a logó „nem mindenhol" cserélődik.
 
 **Komponensosztályok.** A `public/assets/css/app.css` egy kis komponenskészletet definiál, hogy a nézetek olvashatóak maradjanak hosszú segédosztály-listák helyett. Ezt a fájlt a generátor nem írja felül, közvetlenül szerkeszthető:
 
@@ -503,7 +799,17 @@ Négy réteg, felülről lefelé irányuló függőségekkel:
 3. **Domain réteg** — szolgáltatások, amelyek az üzleti logikát tartalmazzák
 4. **Infrastruktúra réteg** — MySQL PDO kapcsolaton, fájlrendszer, PHPMailer
 
-Az adatbázis minden táblája UUID (`CHAR(36)`) elsődleges kulcsot használ, `utf8mb4_unicode_ci` collationnel, InnoDB motorral. A `registrations` táblán `UNIQUE KEY (competition_id, email)` akadályozza meg a dupla nevezést, a `images` és `registrations` idegen kulcsai `ON DELETE CASCADE` beállítással törlődnek.
+Az adatbázis minden táblája UUID (`CHAR(36)`) elsődleges kulcsot használ, `utf8mb4_unicode_ci` collationnel, InnoDB motorral. A `registrations` táblán `UNIQUE KEY (competition_id, email)` és `UNIQUE KEY (competition_id, created_by_user_id)` akadályozza meg a dupla nevezést, a `images` és `registrations` idegen kulcsai `ON DELETE CASCADE` beállítással törlődnek.
+
+**Egyedi megkötések mint üzleti szabály.** Három helyen az adatbázis megkötése
+hordozza a szabályt, nem alkalmazásbeli ellenőrzés — mert az utóbbi két
+párhuzamos kérésnél elbukik:
+
+| Megkötés | Mit véd |
+| --- | --- |
+| `registrations UNIQUE (competition_id, email/created_by_user_id)` | kétszeres nevezés |
+| `ranking_entries UNIQUE (competition_id, player_name)` | ugyanaz a játékos kétszer egy versenyen |
+| `competition_notifications UNIQUE (competition_id, kind)` | ugyanaz a körlevél kétszer |
 
 ## Biztonság
 
@@ -512,6 +818,10 @@ Az adatbázis minden táblája UUID (`CHAR(36)`) elsődleges kulcsot használ, `
 - **Forráskód védelem**: a `src/`, `config/`, `vendor/`, `tests/` könyvtárak és a `.env` nem érhetők el HTTP-n
 - **Feltöltés**: MIME típus (JPEG/PNG) és méret (max 10 MB) validáció, a feltöltési könyvtárban a PHP futtatás tiltva
 - **Admin hozzáférés**: session-alapú, `password_verify()` támogatással
+- **Nevezés**: a nevező neve és e-mail címe a fiókból származik, nem a beküldött adatokból — más nevében nem lehet nevezni
+- **Külső hivatkozás**: a Közvetítés címénél csak `http`/`https` séma fogadható el, és a link `rel="noopener noreferrer"` attribútummal nyílik
+- **Generált jelszó**: `random_int()` alapú, csak a szervezőnek jelenik meg egyszer, e-mailben nem megy ki
+- **Kapcsolható modulok**: kikapcsolt állapotban az útvonalak nincsenek is regisztrálva, tehát a mentett hivatkozás sem ér el tartalmat
 
 Éles üzembe helyezés előtt érdemes átgondolni: az `ADMIN_PASSWORD` lecserélése, HTTPS kikényszerítése, `APP_DEBUG=false`, valamint CSRF token bevezetése az admin űrlapokhoz (jelenleg nincs implementálva).
 
@@ -555,9 +865,32 @@ Az adatbázis-kapcsolat nem áll fel. Ellenőrizd, hogy a MySQL fut, a `.env`-be
 
 A GD kiterjesztés nincs engedélyezve. Ellenőrizd `php -m | findstr gd` paranccsal, és szükség esetén vedd ki a kommentet az `extension=gd` sor elől a `php.ini`-ben.
 
-**A visszaigazoló e-mail nem érkezik meg**
+**A visszaigazoló e-mail vagy a körlevél nem érkezik meg**
 
-Ellenőrizd a `.env` SMTP beállításait. Fejlesztés közben a Mailtrap vagy hasonló szolgáltatás használata ajánlott. A hibák a PHP error logba kerülnek, az `EmailService` legfeljebb 3 kísérletet tesz.
+Ellenőrizd a `.env` SMTP beállításait: a `MAIL_USERNAME` és a `MAIL_PASSWORD`
+üresen hagyva nincs mivel hitelesíteni a kapcsolatot. A `MAIL_FROM_ADDRESS`
+legyen valódi tartományú cím — a `@localhost` végűt a PHPMailer érvénytelenként
+elutasítja. Fejlesztés közben a Mailtrap vagy hasonló szolgáltatás használata
+ajánlott. A hibák a PHP error logba kerülnek, az `EmailService` legfeljebb 3
+kísérletet tesz.
+
+A `php tools/send-notifications.php --check` megmutatja, mennyi címzett van és
+mi esedékes — küldés nélkül, tehát biztonságosan futtatható.
+
+> Ha egy körlevél hibás SMTP beállítás mellett „ment el", a naplósor akkor is
+> létrejön, és a `UNIQUE (competition_id, kind)` miatt másodszor nem küldhető
+> újra. Ilyenkor a `competition_notifications` megfelelő sorát kell törölni.
+
+**A galéria borítóképei lágyak**
+
+A `010` migráció utáni pótlás nem futott le. Ellenőrizd
+`php tools/backfill-images.php --check` paranccsal, majd futtasd le pótlás
+nélküli argumentummal.
+
+**A ranglista vagy a fórum menüpont nem látszik**
+
+A modul ki van kapcsolva a `/admin/beallitasok` oldalon. Kikapcsolt állapotban
+az útvonalai sem léteznek, ezért a közvetlen cím is `404`-et ad.
 
 ## Licenc
 

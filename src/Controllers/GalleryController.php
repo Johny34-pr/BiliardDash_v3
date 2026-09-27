@@ -34,6 +34,10 @@ class GalleryController
     {
         $albums = $this->galleryService->getAlbumsForListing();
 
+        // Az archívumra vezető hivatkozás csak akkor jelenik meg, ha van
+        // is benne album - különben üres oldalra vinne
+        $archivedCount = $this->galleryService->countArchivedAlbums();
+
         $pageTitle = 'Galéria - Okányi Biliárd Klub';
         $metaDescription = 'Versenyalbumok a klub versenyeiről: '
             . 'a versenyek fotói és helyezettjei.';
@@ -41,6 +45,34 @@ class GalleryController
         // Output buffering a layout-hoz
         ob_start();
         require __DIR__ . '/../Views/gallery/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Archív galéria - GET /galeria/archiv
+     *
+     * A korábbi évadok versenyalbumai, szezononként csoportosítva. Az
+     * archiválás nem törlés: az album oldala változatlanul elérhető marad,
+     * csak az aktuális listából kerül ki, hogy ott a friss versenyek
+     * legyenek elöl.
+     */
+    public function archive(): void
+    {
+        $groups = $this->galleryService->getArchivedAlbumsBySeason();
+
+        $albumCount = array_sum(array_map(
+            static fn(array $group): int => count($group['albums']),
+            $groups
+        ));
+
+        $pageTitle = 'Archív galéria - Okányi Biliárd Klub';
+        $metaDescription = 'A korábbi szezonok versenyalbumai: fotók és '
+            . 'helyezettek évadonként.';
+
+        ob_start();
+        require __DIR__ . '/../Views/gallery/archive.php';
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\AppException;
 use App\Core\Database;
 use App\Core\Session;
 use App\Services\CompetitionService;
@@ -78,9 +79,11 @@ class CompetitionController
     /**
      * Nevezési űrlap megjelenítése egy adott versenyhez.
      *
-     * Bejelentkezett felhasználónál a "magamnak" mód a fiók adataival tölti
-     * elő az űrlapot. Vendégként az űrlap üresen jelenik meg, a nevezés
-     * belépés nélkül is működik.
+     * A nevezés belépéshez kötött: a nevező személye így egyértelmű, és a
+     * nevezés a fiókjában is megjelenik, ahol a határidő lejártáig
+     * visszavonhatja. Vendégként az űrlap helyett a belépésre hívó
+     * tájékoztatás látszik, a verseny adatai viszont láthatók maradnak - a
+     * versenykiírás nyilvános információ.
      */
     public function showForm(string $versenyId): void
     {
@@ -93,18 +96,17 @@ class CompetitionController
 
         $user = Session::user();
 
-        // Alapértelmezés belépve: magamnak nevezek
-        $registerFor = ($_GET['kinek'] ?? '') === 'masnak' ? 'other' : 'self';
+        // A telefonszám az egyetlen szerkeszthető mező, a fiókból előtöltve
+        $data = $user !== null ? ['phone' => $user['phone']] : [];
 
-        $data = ($user !== null && $registerFor === 'self')
-            ? ['fullName' => $user['name'], 'email' => $user['email'], 'phone' => $user['phone']]
-            : [];
+        $alreadyRegistered = $user !== null
+            && $this->competitionService->hasUserRegistered($versenyId, $user['id']);
 
         $this->renderForm($competition, [
             'errors' => [],
             'data' => $data,
-            'registerFor' => $registerFor,
             'duplicateError' => false,
+            'alreadyRegistered' => $alreadyRegistered,
             'success' => isset($_GET['success']) && $_GET['success'] === '1',
         ]);
     }
@@ -112,8 +114,10 @@ class CompetitionController
     /**
      * Nevezési űrlap feldolgozása.
      *
-     * Belépett felhasználó esetén a nevezés hozzá kötődik (created_by_user_id),
-     * így később visszavonhatja. Vendégként a nevezés kötetlen marad.
+     * A nevező NEVE és E-MAIL CÍME a fiókból származik, nem az űrlapról:
+     * mindenki csak a saját nevében nevezhet. Aki más helyett szeretne
+     * nevezni, a szervezőt kéri meg - a szervezői felületen bárki
+     * felvihető.
      */
     public function submitRegistration(string $versenyId): void
     {
@@ -124,19 +128,21 @@ class CompetitionController
             return;
         }
 
-        $registerFor = ($_POST['register_for'] ?? '') === 'other' ? 'other' : 'self';
+        // Belépés nélkül nincs nevezés. A cél megőrzésével irányítunk, hogy
+        // a belépés után ne kelljen újra megkeresni a versenyt.
+        if (!Session::isUser()) {
+            redirect('/belepes?tovabb=' . urlencode('/nevezes/' . $versenyId));
+            return;
+        }
 
-        $data = [
-            'fullName' => trim($_POST['full_name'] ?? ''),
-            'email' => trim($_POST['email'] ?? ''),
-            'phone' => trim($_POST['phone'] ?? ''),
-        ];
+        $user = Session::user();
+        $phone = trim($_POST['phone'] ?? '');
 
         $state = [
             'errors' => [],
-            'data' => $data,
-            'registerFor' => $registerFor,
+            'data' => ['phone' => $phone],
             'duplicateError' => false,
+            'alreadyRegistered' => false,
             'success' => false,
         ];
 
@@ -147,29 +153,31 @@ class CompetitionController
             return;
         }
 
-        // Validáció
-        $validator = $this->validationService->validateRegistration($data);
-        if (!$validator->isValid()) {
-            $state['errors'] = $validator->getErrors();
+        // Csak a telefonszám jön az űrlapról, ezért csak azt validáljuk.
+        // A név és az e-mail a fiókból származik, azt a regisztráció
+        // validálta - itt újra ellenőrizni felesleges és félrevezető lenne.
+        if ($phone === '') {
+            $state['errors'] = ['phone' => 'A telefonszám megadása kötelező'];
             $this->renderForm($competition, $state);
             return;
         }
 
-        // Duplikáció ellenőrzés
-        if ($this->competitionService->checkDuplicateRegistration($versenyId, $data['email'])) {
-            $state['duplicateError'] = true;
-            $this->renderForm($competition, $state);
-            return;
-        }
-
-        // Nevezés rögzítése - belépve a felhasználóhoz kötve
         try {
-            $this->competitionService->registerForCompetition($versenyId, $data, Session::userId());
+            $this->competitionService->registerSelf($versenyId, $user, $phone);
 
             // Szándékosan nincs flash üzenet: a visszaigazolást a ?success=1
             // paraméterre a nézet jeleníti meg, részletesebb tartalommal.
             // Flash-sel együtt két helyen jelenne meg ugyanaz.
             redirect("/nevezes/{$versenyId}?success=1");
+        } catch (AppException $e) {
+            if ($e->getCode() === AppException::DUPLICATE_ENTRY) {
+                $state['duplicateError'] = true;
+                $state['alreadyRegistered'] = true;
+            } else {
+                $state['errors'] = ['general' => $e->getMessage()];
+            }
+
+            $this->renderForm($competition, $state);
         } catch (\Throwable $e) {
             error_log('[CompetitionController] Nevezés hiba: ' . $e->getMessage());
             $state['errors'] = ['general' => 'Hiba történt a nevezés során. Kérjük, próbálja újra.'];
@@ -188,14 +196,14 @@ class CompetitionController
      * a határidő lejárt ($deadlinePassed), vagy még nem nyílt meg
      * ($registrationOpened === false).
      *
-     * @param array{errors:array, data:array, registerFor:string, duplicateError:bool, success:bool} $state
+     * @param array{errors:array, data:array, duplicateError:bool, alreadyRegistered:bool, success:bool} $state
      */
     private function renderForm(array $competition, array $state): void
     {
         $errors = $state['errors'];
         $data = $state['data'];
-        $registerFor = $state['registerFor'];
         $duplicateError = $state['duplicateError'];
+        $alreadyRegistered = $state['alreadyRegistered'];
         $success = $state['success'];
         $deadlinePassed = $this->competitionService->isDeadlinePassed($competition);
         $registrationOpened = $this->competitionService->hasRegistrationOpened($competition);

@@ -13,18 +13,40 @@ $footerSocial = socialLinks();
 $footerContact = contactConfig();
 $footerEmail = $footerContact['venue']['email'] ?? '';
 
-/** Lábléc menüpontok. A fórum csak aktív modulként jelenik meg. */
+/**
+ * Lábléc menüpontok. A fórum csak aktív modulként jelenik meg.
+ *
+ * Az archív galéria szándékosan csak itt és a galéria fejlécében szerepel,
+ * a főmenüben nem: a galéria alárendelt oldala, és a főmenüt nem érdemes
+ * két, nagyon hasonló ponttal terhelni.
+ */
 $footerPages = [
-    ['url' => '/',             'label' => 'Főoldal'],
-    ['url' => '/galeria',      'label' => 'Galéria'],
-    ['url' => '/nevezes',      'label' => 'Nevezés'],
-    ['url' => '/rolunk',       'label' => 'Rólunk'],
-    ['url' => '/emlekoldal',   'label' => 'Emlékoldal'],
-    ['url' => '/tarshonlapok', 'label' => 'Társhonlapok'],
+    ['url' => '/',                'label' => 'Főoldal'],
+    ['url' => '/galeria',         'label' => 'Galéria'],
+    ['url' => '/galeria/archiv',  'label' => 'Archív galéria'],
+    ['url' => '/nevezes',         'label' => 'Nevezés'],
+    ['url' => '/rolunk',          'label' => 'Rólunk'],
+    ['url' => '/emlekoldal',      'label' => 'Emlékoldal'],
+    ['url' => '/tarshonlapok',    'label' => 'Társhonlapok'],
 ];
+
+if (rankingEnabled()) {
+    $footerPages[] = ['url' => '/ranglista', 'label' => 'Ranglista'];
+}
 
 if (forumEnabled()) {
     $footerPages[] = ['url' => '/forum', 'label' => 'Fórum'];
+}
+
+// Közvetítés: külső hivatkozás, csak beállított címmel jelenik meg
+$footerBroadcast = broadcastLink();
+
+if ($footerBroadcast !== null) {
+    $footerPages[] = [
+        'url' => $footerBroadcast['url'],
+        'label' => $footerBroadcast['label'],
+        'external' => true,
+    ];
 }
 ?>
 <footer class="mt-20 bg-billiard-green-900 text-white/70">
@@ -83,8 +105,15 @@ if (forumEnabled()) {
                 <nav class="flex flex-col gap-1 -ml-3" aria-label="Lábléc navigáció">
                     <?php foreach ($footerPages as $page): ?>
                         <a href="<?= e($page['url']) ?>"
-                           class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit">
+                           class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm hover:text-white hover:bg-white/5 transition-colors w-fit"
+                           <?= !empty($page['external']) ? 'target="_blank" rel="noopener noreferrer"' : '' ?>>
                             <?= e($page['label']) ?>
+                            <?php if (!empty($page['external'])): ?>
+                                <svg class="w-3 h-3 ml-1.5 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+                                </svg>
+                                <span class="sr-only">(új lapon nyílik)</span>
+                            <?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 </nav>
@@ -100,7 +129,7 @@ if (forumEnabled()) {
                     Belépés
                 </h2>
                 <p class="text-xs leading-relaxed text-white/40 mb-2 max-w-xs">
-                    Nevezésekhez. Nem kötelező, de kényelmesebb vele.
+                    Nevezésekhez.
                 </p>
                 <nav class="flex flex-col gap-1 -ml-3" aria-label="Látogatói fiók navigáció">
                     <?php if (\App\Core\Session::isUser()): ?>

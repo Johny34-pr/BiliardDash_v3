@@ -224,6 +224,78 @@ class CompetitionService
     }
 
     /**
+     * Saját nevezés rögzítése belépett felhasználóként.
+     *
+     * A nevező NEVE és E-MAIL CÍME a fiókból származik, nem az űrlapról:
+     * mindenki csak a saját nevében nevezhet. Az űrlapon egyedül a
+     * telefonszám szerkeszthető, mert az eltérhet a fiókban tárolttól (más
+     * készülék, elérhető szám a verseny napján), és a szervezőnek a
+     * használható számra van szüksége.
+     *
+     * A duplikációt a fiók szerint vizsgáljuk, nem e-mail szerint: így egy
+     * másik címmel sem lehet kétszer nevezni ugyanarra a versenyre.
+     *
+     * @param array{id:string, name:string, email:string} $user A belépett felhasználó
+     * @return array{id:string, competition_id:string, full_name:string, email:string, phone:string, registered_at:string}
+     * @throws AppException
+     */
+    public function registerSelf(string $competitionId, array $user, string $phone): array
+    {
+        if ($this->hasUserRegistered($competitionId, $user['id'])) {
+            throw AppException::duplicateEntry('Erre a versenyre már neveztél');
+        }
+
+        return $this->registerForCompetition(
+            $competitionId,
+            [
+                'fullName' => $user['name'],
+                'email' => $user['email'],
+                'phone' => $phone,
+            ],
+            $user['id']
+        );
+    }
+
+    /**
+     * Nevezés rögzítése szervezői jogkörben, bárki nevében.
+     *
+     * Két eset van, és a különbség az utólagos kezelésben számít:
+     *
+     *   - Ha a szervező a tagok közül választ, a nevezés az adott FIÓKHOZ
+     *     kötődik: a tag a saját fiókjában is látja, és a határidő lejártáig
+     *     maga visszavonhatja.
+     *
+     *   - Ha kézzel írja be az adatokat (fiók nélküli játékos), a nevezés
+     *     vendégnevezés marad. A névsorban ugyanúgy szerepel, csak nem
+     *     tartozik fiókhoz.
+     *
+     * A nyitódátumot és a határidőt itt SEM lépjük át: ha a szervezőnek a
+     * határidő után kell nevezőt felvinnie, előbb a határidőt módosítja. Így
+     * a nevezői lista és a meghirdetett határidő nem mond ellent egymásnak.
+     *
+     * @param array{fullName:string, email:string, phone:string} $data
+     * @param string|null $userId A nevező fiókja, vagy null fiók nélküli játékosnál
+     * @return array{id:string, competition_id:string, full_name:string, email:string, phone:string, registered_at:string}
+     * @throws AppException
+     */
+    public function registerAsAdmin(string $competitionId, array $data, ?string $userId = null): array
+    {
+        if ($userId !== null && $this->hasUserRegistered($competitionId, $userId)) {
+            throw AppException::duplicateEntry('Ez a fiók már nevezett erre a versenyre');
+        }
+
+        return $this->registerForCompetition($competitionId, $data, $userId);
+    }
+
+    /**
+     * Nevezett-e már ez a fiók erre a versenyre.
+     */
+    public function hasUserRegistered(string $competitionId, string $userId): bool
+    {
+        return $this->registrationModel->findByCompetitionAndUser($competitionId, $userId) !== null;
+    }
+
+    /**
      * Egy verseny összes nevezésének lekérdezése.
      *
      * Teljes adatkörrel tér vissza (e-mail, telefon), ezért kizárólag

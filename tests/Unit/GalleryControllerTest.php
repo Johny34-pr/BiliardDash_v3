@@ -19,22 +19,38 @@ class GalleryControllerTest extends TestCase
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
+        // A galéria a szezont is kiírja az album mellé
+        $this->pdo->exec('
+            CREATE TABLE seasons (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                starts_on TEXT DEFAULT NULL,
+                is_current INTEGER NOT NULL DEFAULT 0,
+                is_archived INTEGER NOT NULL DEFAULT 0
+            )
+        ');
+
         $this->pdo->exec('
             CREATE TABLE albums (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
+                season_id TEXT DEFAULT NULL,
+                is_archived INTEGER NOT NULL DEFAULT 0,
                 cover_image_id TEXT,
                 image_count INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         ');
 
+        // A medium_path a megjelenítéshez készülő közepes méret: ez kerül a
+        // kártyákra és az album oldalára az eredeti helyett
         $this->pdo->exec('
             CREATE TABLE images (
                 id TEXT PRIMARY KEY,
                 album_id TEXT NOT NULL,
                 filename TEXT NOT NULL,
                 thumbnail_path TEXT NOT NULL,
+                medium_path TEXT DEFAULT NULL,
                 full_path TEXT NOT NULL,
                 alt_text TEXT,
                 uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP

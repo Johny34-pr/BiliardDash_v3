@@ -47,7 +47,12 @@ const SAND_50   = [0xfb, 0xfa, 0xf8];
 /** Túlminta-vételi arány az élsimításhoz */
 const SUPERSAMPLE = 4;
 
-/** A címer mekkora részét foglalja el a vászonnak (a maradék a levegő) */
+/**
+ * Mennyit foglal el a LEBEGŐ (átlátszó hátterű) logó a vászonból.
+ * A maradék a levegő, ami elválasztja a lekerekített háttértől.
+ *
+ * Teljes vásznat kitöltő logónál ez NEM érvényes, lásd logoFill().
+ */
 const LOGO_FILL = 0.80;
 
 $rootDir = dirname(__DIR__);
@@ -177,7 +182,122 @@ function loadLogo(string $path): \GdImage
 }
 
 /**
- * A címer arányos beillesztése egy négyzetes vászon közepére.
+ * A négy sarok levágása lekerekítettre: a rádiuszon kívüli képpontok
+ * teljesen átlátszóvá válnak.
+ *
+ * Erre azért van szükség, mert a teljes vásznat kitöltő logó LETAKARJA a
+ * lekerekített hátteret, és a sarkai szögletesek. A háttér ilyenkor már nem
+ * tábla, hanem maszk - de a GD-ben nincs alfamaszk, ezért a sarkokat
+ * képpontonként töröljük.
+ *
+ * A túlminta-vétel miatt ez nem lesz szögletes lépcső: a lekicsinyítés
+ * elsimítja a vágás élét.
+ *
+ * Lebegő logónál a művelet hatástalan, mert ott a sarkok már eleve
+ * átlátszóak - ugyanezzel a rádiusszal rajzolta ki a filledRoundedRect.
+ */
+function applyRoundedMask(\GdImage $image, int $radius): void
+{
+    $width = imagesx($image);
+    $height = imagesy($image);
+    $radius = min($radius, (int) floor(min($width, $height) / 2));
+
+    if ($radius < 1) {
+        return;
+    }
+
+    // A törléshez ki kell kapcsolni az összeolvasztást, különben az
+    // átlátszó képpont csak "rákerül" a meglévőre, és nem cseréli le
+    imagealphablending($image, false);
+    $clear = imagecolorallocatealpha($image, 0, 0, 0, 127);
+
+    /** @var array<int, array{0:int,1:int,2:int,3:int}> [sarok x, sarok y, kör közép x, kör közép y] */
+    $corners = [
+        [0, 0, $radius, $radius],
+        [$width - $radius, 0, $width - 1 - $radius, $radius],
+        [0, $height - $radius, $radius, $height - 1 - $radius],
+        [$width - $radius, $height - $radius, $width - 1 - $radius, $height - 1 - $radius],
+    ];
+
+    foreach ($corners as [$startX, $startY, $centerX, $centerY]) {
+        for ($y = $startY; $y < $startY + $radius; $y++) {
+            for ($x = $startX; $x < $startX + $radius; $x++) {
+                $dx = $x - $centerX;
+                $dy = $y - $centerY;
+
+                if ($dx * $dx + $dy * $dy > $radius * $radius) {
+                    imagesetpixel($image, $x, $y, $clear);
+                }
+            }
+        }
+    }
+
+    imagealphablending($image, true);
+}
+
+/**
+ * Mennyire töltse ki a logó a vásznat.
+ *
+ * Kétféle logó létezik, és ugyanaz a kitöltés a másiknak rossz:
+ *
+ *   - LEBEGŐ jelkép, átlátszó háttérrel (címer, embléma). Kell körülötte
+ *     levegő, különben a lekerekített háttér széléhez tapad. -> LOGO_FILL
+ *
+ *   - TELJES VÁSZNAT kitöltő kép, saját opak háttérrel. Ha levegőt hagyunk
+ *     körülötte, látható KETTŐS KERET lesz belőle: egy világos négyzet egy
+ *     másik világos, lekerekített négyzet közepén, jól kivehető gyűrűvel.
+ *     Ilyenkor a háttér már csak maszk. -> 1.0
+ *
+ * A döntést a kép SARKAINAK átlátszósága adja, nem beállítás - így a logó
+ * cseréje továbbra is egyetlen fájl felülírása marad. A sarok azért jó jel,
+ * mert egy lebegő jelkép befoglaló téglalapjának sarka mindig háttér, egy
+ * teljes vásznat kitöltő képnél viszont rajz.
+ */
+function logoFill(string $path): float
+{
+    $logo = loadLogo($path);
+    $width = imagesx($logo);
+    $height = imagesy($logo);
+
+    // A legszélső képpontsor élsimított, ezért egy képponttal beljebb
+    // mintázunk. Kis logónál a minta a képbe lóghat, ezért korlátozzuk.
+    $patch = max(1, min(4, (int) floor(min($width, $height) / 4)));
+    $inset = min(1, max(0, (int) floor(min($width, $height) / 8)));
+
+    /** Egy sarokminta átlagos átlátszatlansága 0 és 1 között */
+    $cornerOpacity = static function (int $startX, int $startY) use ($logo, $patch): float {
+        $opaque = 0;
+
+        for ($y = 0; $y < $patch; $y++) {
+            for ($x = 0; $x < $patch; $x++) {
+                $alpha = (imagecolorat($logo, $startX + $x, $startY + $y) >> 24) & 0x7F;
+
+                // 64 = félig átlátszó; ami ennél tömörebb, azt rajznak vesszük
+                if ($alpha < 64) {
+                    $opaque++;
+                }
+            }
+        }
+
+        return $opaque / ($patch * $patch);
+    };
+
+    $corners = [
+        $cornerOpacity($inset, $inset),
+        $cornerOpacity($width - $inset - $patch, $inset),
+        $cornerOpacity($inset, $height - $inset - $patch),
+        $cornerOpacity($width - $inset - $patch, $height - $inset - $patch),
+    ];
+
+    $solidCorners = count(array_filter($corners, static fn(float $o): bool => $o >= 0.5));
+
+    // Négyből három: egy lekerekített sarkú, de egyébként tele képet is
+    // teljes kitöltésűnek ismerünk fel
+    return $solidCorners >= 3 ? 1.0 : LOGO_FILL;
+}
+
+/**
+ * A logó arányos beillesztése egy négyzetes vászon közepére.
  *
  * Az arányt megtartjuk: a hosszabbik oldal tölti ki a rendelkezésre álló
  * területet, a rövidebbik középre kerül. Így a logó soha nem nyúlik meg.
@@ -226,14 +346,22 @@ function drawIcon(int $size, string $logoPath, string $background = 'rounded'): 
     $canvas = createCanvas($s, $s);
 
     $sand = color($canvas, SAND_50);
+    $radius = (int) round($s * 14 / 64);
 
     if ($background === 'rounded') {
-        filledRoundedRect($canvas, 0, 0, $s, $s, (int) round($s * 14 / 64), $sand);
+        filledRoundedRect($canvas, 0, 0, $s, $s, $radius, $sand);
     } elseif ($background === 'square') {
         imagefilledrectangle($canvas, 0, 0, $s, $s, $sand);
     }
 
-    placeLogo($canvas, $logoPath, $s, LOGO_FILL);
+    placeLogo($canvas, $logoPath, $s, logoFill($logoPath));
+
+    // A teljes vásznat kitöltő logó letakarná a lekerekített hátteret, ezért
+    // a sarkokat utólag vágjuk le. Az apple-touch-icon kimarad: azt az iOS
+    // maga kerekíti, egy előre levágott sarok ott dupla vágás lenne.
+    if ($background === 'rounded') {
+        applyRoundedMask($canvas, $radius);
+    }
 
     // Lekicsinyítés a célméretre - ez adja az élsimítást.
     // A célképen az alphablending kikapcsolva, hogy az alfa átmásolódjon.
@@ -348,8 +476,9 @@ function drawOgImage(
     // Arany zárósáv alul - a fejléc jelzővonalának képi megfelelője
     imagefilledrectangle($canvas, 0, $height - 12, $width - 1, $height - 1, color($canvas, GOLD_400));
 
-    // A címer világos táblán, a bal oldalon. A tábla azért kell, mert a kék
-    // címer a sötétzöld háttéren beleolvadna a felületbe.
+    // A logó a bal oldalon, ugyanazzal a lekerekített formával, mint a
+    // böngészőfül ikonja - a drawIcon() dönti el, kell-e alá világos tábla
+    // (lebegő jelkép), vagy a logó a saját hátterét hozza.
     $panelSize = 260;
     $panelX = 92;
     $panelY = (int) round(($height - $panelSize) / 2) - 6;

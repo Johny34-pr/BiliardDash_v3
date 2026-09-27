@@ -69,7 +69,15 @@ $renameErrors = $renameErrors ?? [];
                             <h2 id="album-<?= e($album['id']) ?>" class="font-semibold text-billiard-green-900 truncate">
                                 <?= e($album['name']) ?>
                             </h2>
-                            <p class="text-sm text-sand-500 mt-0.5"><?= (int)$album['image_count'] ?> kép</p>
+                            <p class="flex flex-wrap items-center gap-2 text-sm text-sand-500 mt-1">
+                                <span><?= (int)$album['image_count'] ?> kép</span>
+                                <?php if (!empty($album['season_name'])): ?>
+                                    <span class="badge badge-neutral"><?= e($album['season_name']) ?></span>
+                                <?php endif; ?>
+                                <?php if ((int) $album['is_archived'] === 1): ?>
+                                    <span class="badge badge-gold">Archív</span>
+                                <?php endif; ?>
+                            </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2 shrink-0">
                             <a href="/galeria/<?= e($album['id']) ?>" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">
@@ -87,6 +95,30 @@ $renameErrors = $renameErrors ?? [];
                                 </svg>
                                 Feltöltés
                             </a>
+
+                            <!--
+                                Archiválás: az album nem törlődik, csak átkerül
+                                az archívumba (/galeria/archiv). A rejtett mező a
+                                kívánt ÁLLAPOTOT küldi, nem a váltás tényét, így
+                                egy kétszer elküldött űrlap sem fordítja vissza.
+                            -->
+                            <?php $isArchived = (int) $album['is_archived'] === 1; ?>
+                            <form action="/admin/galeria/<?= e($album['id']) ?>/archivalas" method="POST">
+                                <input type="hidden" name="archived" value="<?= $isArchived ? '0' : '1' ?>">
+                                <button type="submit" class="btn btn-ghost btn-sm">
+                                    <?php if ($isArchived): ?>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
+                                        </svg>
+                                        Visszahelyezés
+                                    <?php else: ?>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/>
+                                        </svg>
+                                        Archiválás
+                                    <?php endif; ?>
+                                </button>
+                            </form>
 
                             <!--
                                 Album törlése: a képfájlok is törlődnek, ezért a
@@ -114,7 +146,7 @@ $renameErrors = $renameErrors ?? [];
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/>
                             </svg>
-                            Név szerkesztése
+                            Név és szezon szerkesztése
                         </summary>
 
                         <form action="/admin/galeria/<?= e($album['id']) ?>/szerkeszt" method="POST"
@@ -133,6 +165,25 @@ $renameErrors = $renameErrors ?? [];
                                     </p>
                                 <?php endif; ?>
                             </div>
+
+                            <!--
+                                Szezon: ez a galéria archívumának rendező elve.
+                                Üresen hagyható - a szezon nélküli albumok az
+                                archívum végén, külön csoportban jelennek meg.
+                            -->
+                            <div class="sm:w-56">
+                                <label for="season-<?= e($album['id']) ?>" class="label">Szezon</label>
+                                <select id="season-<?= e($album['id']) ?>" name="season_id" class="field">
+                                    <option value="">Nincs megadva</option>
+                                    <?php foreach ($seasonOptions as $seasonId => $seasonLabel): ?>
+                                        <option value="<?= e($seasonId) ?>"
+                                            <?= $album['season_id'] === $seasonId ? 'selected' : '' ?>>
+                                            <?= e($seasonLabel) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
                             <button type="submit" class="btn btn-primary btn-sm sm:mt-[1.7rem]">Mentés</button>
                         </form>
                     </details>

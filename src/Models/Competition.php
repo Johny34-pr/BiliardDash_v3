@@ -14,8 +14,19 @@ class Competition
      * Egy helyen definiálva, hogy a findOpen/findAll/findById ugyanazt az
      * adatkört adja vissza, és új oszlop hozzáadásakor ne csúszhassanak szét.
      */
-    private const COLUMNS = 'id, name, date, venue, registration_opens_at, registration_deadline,
-                    registrant_count, created_at, updated_at';
+    private const COLUMNS = 'c.id, c.season_id, c.name, c.date, c.venue,
+                    c.registration_opens_at, c.registration_deadline,
+                    c.registrant_count, c.created_at, c.updated_at,
+                    s.name AS season_name';
+
+    /**
+     * A szezon nevét minden lekérdezés mellé hozzuk.
+     *
+     * LEFT JOIN, mert a verseny lehet szezon nélküli: a régi versenyeknél nem
+     * tudjuk biztosan, melyik évadhoz tartoztak, és a szervező utólag
+     * állíthatja be.
+     */
+    private const FROM = 'FROM competitions c LEFT JOIN seasons s ON s.id = c.season_id';
 
     public function __construct(private PDO $db)
     {
@@ -34,9 +45,9 @@ class Competition
     {
         $stmt = $this->db->query(
             'SELECT ' . self::COLUMNS . '
-             FROM competitions
-             WHERE registration_deadline > NOW()
-             ORDER BY date ASC'
+             ' . self::FROM . '
+             WHERE c.registration_deadline > NOW()
+             ORDER BY c.date ASC'
         );
 
         return $stmt->fetchAll();
@@ -61,8 +72,8 @@ class Competition
     {
         $stmt = $this->db->query(
             'SELECT ' . self::COLUMNS . '
-             FROM competitions
-             ORDER BY date DESC'
+             ' . self::FROM . '
+             ORDER BY c.date DESC'
         );
 
         return $stmt->fetchAll();
@@ -77,8 +88,8 @@ class Competition
     {
         $stmt = $this->db->prepare(
             'SELECT ' . self::COLUMNS . '
-             FROM competitions
-             WHERE id = :id'
+             ' . self::FROM . '
+             WHERE c.id = :id'
         );
         $stmt->execute([':id' => $id]);
 

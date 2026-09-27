@@ -62,12 +62,25 @@ $medalClass = static function (int $position): string {
                     [data-lightbox-index] elemekre figyel, ezért a nagyítható
                     kép ugyanezt a szerkezetet használja.
                 -->
+                <?php
+                /*
+                 * Az oldalon a közepes méret (max. 1200 px) jelenik meg, a
+                 * nagyításban pedig az eredeti fájl. A kép itt körülbelül
+                 * 660 CSS pixel széles, tehát az 1200 px-es változat a
+                 * kétszeres képpontsűrűségű kijelzőn is éles - miközben
+                 * sokkal kisebb letöltés, mint a nyers eredeti.
+                 *
+                 * Régi képnél még nincs közepes méret (a medium_path oszlop
+                 * utólag került a táblába), ilyenkor az eredeti áll be.
+                 */
+                $displayPath = $cover['medium_path'] ?? $cover['full_path'];
+                ?>
                 <div id="gallery-grid">
                     <button type="button"
                             class="group block w-full overflow-hidden rounded-2xl bg-sand-200 ring-1 ring-black/5"
                             data-lightbox-index="0"
                             aria-label="Kép megnyitása teljes méretben">
-                        <img src="/<?= e($cover['full_path']) ?>"
+                        <img src="/<?= e($displayPath) ?>"
                              alt="<?= e($cover['alt_text'] ?? $album['name']) ?>"
                              class="w-full h-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                              onerror="this.onerror=null;this.src='/assets/images/placeholder.svg';this.classList.add('error-placeholder');"
@@ -111,7 +124,7 @@ $medalClass = static function (int $position): string {
 
         <!-- ============ Jobb oldal: helyezettek ============ -->
         <aside class="lg:col-span-2">
-            <div class="card overflow-hidden lg:sticky lg:top-24">
+            <div class="card overflow-hidden sticky-under-header">
 
                 <div class="flex items-center gap-3 px-6 py-5 bg-billiard-green-900 text-white">
                     <span class="grid place-items-center w-10 h-10 shrink-0 rounded-xl bg-white/10" aria-hidden="true">

@@ -2,12 +2,18 @@
 /**
  * Nevezési űrlap nézet
  *
- * Három használati mód:
- *   1. Vendégként (nincs belépés): üres űrlap, a nevezés kötetlen marad
- *   2. Belépve, "magamnak": a fiók adataival előtöltött űrlap
- *   3. Belépve, "másnak": üres űrlap, a nevezés a fiókhoz kötve marad
+ * A nevezés belépéshez kötött, és mindenki a saját nevében nevez. Ezért
+ * három állapota van:
  *
- * A belépéssel rögzített nevezés a fiókban visszavonható a határidő lejártáig.
+ *   1. Vendégként: az űrlap helyett belépésre hívó tájékoztatás. A verseny
+ *      adatai láthatók maradnak, mert a versenykiírás nyilvános információ.
+ *   2. Belépve, még nem nevezett: a fiók neve és e-mail címe csak olvasható
+ *      módon jelenik meg, szerkeszthető egyedül a telefonszám.
+ *   3. Belépve, már nevezett: visszajelzés és hivatkozás a fiókra, ahol a
+ *      nevezés a határidő lejártáig visszavonható.
+ *
+ * Aki más helyett szeretne nevezni, a szervezőt kéri meg: a szervezői
+ * felületen bárki felvihető, fiók nélküli játékos is.
  *
  * @var array      $competition        Verseny adatai
  * @var array      $errors             Validációs hibák (mező => üzenet)
@@ -15,8 +21,8 @@
  * @var bool       $deadlinePassed     Lejárt-e a határidő
  * @var bool       $registrationOpened Megnyílt-e már a nevezés
  * @var bool       $duplicateError     Dupla nevezés történt-e
+ * @var bool       $alreadyRegistered  Nevezett-e már ez a fiók
  * @var bool       $success            Sikeres nevezés
- * @var string     $registerFor        'self' vagy 'other'
  * @var array|null $currentUser        A bejelentkezett felhasználó, vagy null
  */
 
@@ -25,12 +31,15 @@
 $notYetOpen = !($registrationOpened ?? true);
 $isDisabled = !empty($deadlinePassed) || $notYetOpen;
 $isLoggedIn = $currentUser !== null;
-$forSelf = $registerFor === 'self';
+$hasRegistered = !empty($alreadyRegistered);
 $date = new DateTimeImmutable($competition['date']);
 $deadline = new DateTimeImmutable($competition['registration_deadline']);
 $opensAt = !empty($competition['registration_opens_at'])
     ? new DateTimeImmutable($competition['registration_opens_at'])
     : null;
+
+// A belépés után ide térjen vissza a látogató
+$loginTarget = '/belepes?tovabb=' . urlencode('/nevezes/' . $competition['id']);
 
 /** Egységes osztálylista egy beviteli mezőhöz, hibaállapot szerint */
 $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' field-error' : '');
@@ -69,10 +78,9 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                     <div>
                         <p class="alert-title">Sikeres nevezés</p>
                         <p class="text-sm mt-0.5">
-                            Visszaigazoló e-mailt küldtünk a megadott címre.
-                            <?php if ($isLoggedIn): ?>
-                                A nevezés a <a href="/fiok" class="font-medium underline">fiókodban</a> is megjelenik.
-                            <?php endif; ?>
+                            Visszaigazoló e-mailt küldtünk a fiókodhoz tartozó címre.
+                            A nevezés a <a href="/fiok" class="font-medium underline">fiókodban</a> is megjelenik,
+                            és a határidő lejártáig visszavonható.
                         </p>
                     </div>
                 </div>
@@ -110,18 +118,6 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                 </div>
             <?php endif; ?>
 
-            <?php if (!empty($duplicateError)): ?>
-                <div class="alert alert-error mb-6" role="alert">
-                    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-                    </svg>
-                    <div>
-                        <p class="alert-title">Ezzel az e-mail címmel már történt nevezés</p>
-                        <p class="text-sm mt-0.5">Erre a versenyre már regisztráltak a megadott e-mail címmel.</p>
-                    </div>
-                </div>
-            <?php endif; ?>
-
             <?php if (!empty($errors['general'])): ?>
                 <div class="alert alert-error mb-6" role="alert">
                     <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -131,140 +127,154 @@ $fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' fiel
                 </div>
             <?php endif; ?>
 
-            <div class="card p-6 md:p-8">
+            <?php if (!$isLoggedIn): ?>
+                <!--
+                    Vendég: a nevezés belépéshez kötött. Az űrlap helyett a
+                    belépés útját mutatjuk, mert egy kitöltött, majd
+                    elutasított űrlap csak elvesztegetett munka lenne.
+                -->
+                <div class="card p-6 md:p-8">
+                    <span class="grid place-items-center w-12 h-12 rounded-xl bg-billiard-green-50 text-billiard-green-700 mb-4" aria-hidden="true">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+                        </svg>
+                    </span>
 
-                <?php if ($isLoggedIn && !$isDisabled): ?>
-                    <!-- Mód választó: magamnak / másnak -->
-                    <div class="mb-6">
-                        <p class="label mb-2">Kinek nevezel?</p>
-                        <div class="inline-flex p-1 rounded-xl bg-sand-100 border border-sand-200" role="group" aria-label="Nevezés célja">
-                            <a href="/nevezes/<?= e($competition['id']) ?>?kinek=magamnak"
-                               class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors
-                                      <?= $forSelf ? 'bg-white text-billiard-green-800 shadow-sm' : 'text-sand-600 hover:text-billiard-green-700' ?>"
-                               <?= $forSelf ? 'aria-current="true"' : '' ?>>
-                                Magamnak
-                            </a>
-                            <a href="/nevezes/<?= e($competition['id']) ?>?kinek=masnak"
-                               class="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold transition-colors
-                                      <?= !$forSelf ? 'bg-white text-billiard-green-800 shadow-sm' : 'text-sand-600 hover:text-billiard-green-700' ?>"
-                               <?= !$forSelf ? 'aria-current="true"' : '' ?>>
-                                Másnak
-                            </a>
+                    <h2 class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-2">
+                        A nevezéshez belépés kell
+                    </h2>
+                    <p class="text-sand-600 leading-relaxed mb-5">
+                        A nevezés a fiókodhoz kötődik: így a neved egyértelmű a
+                        nevezői listán, a nevezésed pedig megjelenik a
+                        fiókodban, ahol a határidő lejártáig visszavonhatod.
+                    </p>
+
+                    <div class="flex flex-wrap gap-3">
+                        <a href="<?= e($loginTarget) ?>" class="btn btn-primary">
+                            Belépés
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                            </svg>
+                        </a>
+                        <a href="/regisztracio" class="btn btn-secondary">Új fiók létrehozása</a>
+                    </div>
+
+                    <p class="field-hint mt-5">
+                        Nincs fiókod, és nem is szeretnél? Keresd a versenyszervezőt a
+                        <a href="/tarshonlapok" class="font-medium text-billiard-green-600 hover:underline">kapcsolat oldalon</a> -
+                        ő fiók nélkül is fel tud venni a nevezők közé.
+                    </p>
+                </div>
+
+            <?php elseif ($hasRegistered): ?>
+                <!-- Már nevezett ez a fiók: a nevezés a fiókban kezelhető -->
+                <div class="card p-6 md:p-8">
+                    <span class="grid place-items-center w-12 h-12 rounded-xl bg-billiard-green-50 text-billiard-green-700 mb-4" aria-hidden="true">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </span>
+
+                    <h2 class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-2">
+                        Erre a versenyre már neveztél
+                    </h2>
+                    <p class="text-sand-600 leading-relaxed mb-5">
+                        A nevezésed rögzítve van. Egy fiókkal versenyenként egyszer
+                        lehet nevezni, ezért új nevezést nem tudsz leadni.
+                    </p>
+
+                    <div class="flex flex-wrap gap-3">
+                        <a href="/fiok" class="btn btn-primary">Nevezéseim</a>
+                        <a href="/nevezes/<?= e($competition['id']) ?>/nevezok" class="btn btn-secondary">
+                            Nevezői lista
+                        </a>
+                    </div>
+                </div>
+
+            <?php else: ?>
+                <div class="card p-6 md:p-8">
+
+                    <h2 class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-1">
+                        Nevezési adatok
+                    </h2>
+                    <p class="text-sm text-sand-500 mb-6">
+                        A neved és az e-mail címed a fiókodból származik. Ha
+                        változtatnál rajtuk, azt a fiókodban tedd meg.
+                    </p>
+
+                    <!--
+                        A név és az e-mail cím csak olvasható: mindenki a saját
+                        nevében nevez, ezért ezek az adatok nem az űrlapról,
+                        hanem a fiókból kerülnek a nevezésre. Nem disabled
+                        input, hanem egyszerű szöveg - így nem tűnik úgy,
+                        mintha csak ideiglenesen lennének tiltva.
+                    -->
+                    <dl class="rounded-xl bg-sand-50 border border-sand-200 divide-y divide-sand-200 mb-5">
+                        <div class="flex items-baseline justify-between gap-4 px-4 py-3">
+                            <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500">Nevező</dt>
+                            <dd class="font-semibold text-sand-900 text-right"><?= e($currentUser['name']) ?></dd>
                         </div>
-                        <p class="field-hint">
-                            <?= $forSelf
-                                ? 'Az űrlapot a fiókod adataival töltöttük elő.'
-                                : 'Add meg annak az adatait, aki játszani fog. A visszaigazolást ő kapja meg.' ?>
-                        </p>
-                    </div>
-                <?php endif; ?>
+                        <div class="flex items-baseline justify-between gap-4 px-4 py-3">
+                            <dt class="text-xs font-semibold uppercase tracking-wider text-sand-500">E-mail</dt>
+                            <dd class="text-sand-900 text-right break-all"><?= e($currentUser['email']) ?></dd>
+                        </div>
+                    </dl>
 
-                <h2 class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-1">
-                    <?= $isLoggedIn && !$forSelf ? 'A nevező adatai' : 'Nevezési adatok' ?>
-                </h2>
-                <p class="text-sm text-sand-500 mb-6">
-                    A <span class="text-billiard-gold-600 font-semibold">*</span>-gal jelölt mezők kitöltése kötelező.
-                </p>
+                    <form method="POST" action="/nevezes/<?= e($competition['id']) ?>"
+                          class="space-y-5" novalidate data-validate
+                          <?= $isDisabled ? 'aria-disabled="true"' : '' ?>>
 
-                <form method="POST" action="/nevezes/<?= e($competition['id']) ?>"
-                      class="space-y-5" novalidate data-validate
-                      <?= $isDisabled ? 'aria-disabled="true"' : '' ?>>
-
-                    <input type="hidden" name="register_for" value="<?= $forSelf ? 'self' : 'other' ?>">
-
-                    <!-- Teljes név -->
-                    <div>
-                        <label for="full_name" class="label">
-                            Teljes név <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-                        </label>
-                        <input type="text" id="full_name" name="full_name"
-                               value="<?= e($data['fullName'] ?? '') ?>"
-                               required maxlength="100" autocomplete="<?= $forSelf ? 'name' : 'off' ?>"
-                               placeholder="pl. Kovács Péter"
-                               class="<?= $fieldClass(!empty($errors['fullName'])) ?>"
-                               <?= !empty($errors['fullName']) ? 'aria-describedby="full_name-error" aria-invalid="true"' : '' ?>
-                               <?= $isDisabled ? 'disabled' : '' ?>>
-                        <?php if (!empty($errors['fullName'])): ?>
-                            <p id="full_name-error" class="field-message" role="alert"><?= e($errors['fullName']) ?></p>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- E-mail cím -->
-                    <div>
-                        <label for="email" class="label">
-                            E-mail cím <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-                        </label>
-                        <input type="email" id="email" name="email"
-                               value="<?= e($data['email'] ?? '') ?>"
-                               required autocomplete="<?= $forSelf ? 'email' : 'off' ?>"
-                               placeholder="pl. nev@example.hu"
-                               class="<?= $fieldClass(!empty($errors['email'])) ?>"
-                               <?= !empty($errors['email']) ? 'aria-describedby="email-error" aria-invalid="true"' : 'aria-describedby="email-hint"' ?>
-                               <?= $isDisabled ? 'disabled' : '' ?>>
-                        <?php if (!empty($errors['email'])): ?>
-                            <p id="email-error" class="field-message" role="alert"><?= e($errors['email']) ?></p>
-                        <?php else: ?>
-                            <p id="email-hint" class="field-hint">
-                                <?= $isLoggedIn && !$forSelf
-                                    ? 'A visszaigazolást erre a címre küldjük.'
-                                    : 'Erre a címre küldjük a visszaigazolást.' ?>
-                            </p>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Telefonszám -->
-                    <div>
-                        <label for="phone" class="label">
-                            Telefonszám <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-                        </label>
-                        <input type="tel" id="phone" name="phone"
-                               value="<?= e($data['phone'] ?? '') ?>"
-                               required autocomplete="<?= $forSelf ? 'tel' : 'off' ?>"
-                               placeholder="pl. +36 30 123 4567"
-                               class="<?= $fieldClass(!empty($errors['phone'])) ?>"
-                               <?= !empty($errors['phone']) ? 'aria-describedby="phone-error" aria-invalid="true"' : '' ?>
-                               <?= $isDisabled ? 'disabled' : '' ?>>
-                        <?php if (!empty($errors['phone'])): ?>
-                            <p id="phone-error" class="field-message" role="alert"><?= e($errors['phone']) ?></p>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Beküldés -->
-                    <div class="pt-2">
-                        <button type="submit" class="btn btn-primary w-full" <?= $isDisabled ? 'disabled' : '' ?>>
-                            <?php if ($notYetOpen): ?>
-                                A nevezés még nem nyílt meg
-                            <?php elseif ($isDisabled): ?>
-                                A nevezés lezárult
+                        <!-- Telefonszám: az egyetlen szerkeszthető mező -->
+                        <div>
+                            <label for="phone" class="label">
+                                Telefonszám <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+                            </label>
+                            <input type="tel" id="phone" name="phone"
+                                   value="<?= e($data['phone'] ?? '') ?>"
+                                   required autocomplete="tel"
+                                   placeholder="pl. +36 30 123 4567"
+                                   class="<?= $fieldClass(!empty($errors['phone'])) ?>"
+                                   <?= !empty($errors['phone'])
+                                        ? 'aria-describedby="phone-error" aria-invalid="true"'
+                                        : 'aria-describedby="phone-hint"' ?>
+                                   <?= $isDisabled ? 'disabled' : '' ?>>
+                            <?php if (!empty($errors['phone'])): ?>
+                                <p id="phone-error" class="field-message" role="alert"><?= e($errors['phone']) ?></p>
                             <?php else: ?>
-                                Nevezés elküldése
+                                <p id="phone-hint" class="field-hint">
+                                    A verseny napján elérhető számot add meg. A fiókodban tárolt
+                                    számot töltöttük elő, de itt módosíthatod.
+                                </p>
                             <?php endif; ?>
-                        </button>
-                    </div>
-                </form>
-            </div>
+                        </div>
 
-            <?php if (!$isLoggedIn && !$isDisabled): ?>
-                <!-- Vendégként is működik, de fiókkal több lehetőség van -->
-                <div class="alert alert-info mt-6">
-                    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
-                    </svg>
-                    <div class="text-sm">
-                        <p class="alert-title mb-0.5">Nevezhetsz fiók nélkül is</p>
-                        <p>
-                            Ez az űrlap belépés nélkül is működik.
-                            <a href="/belepes?tovabb=<?= urlencode('/nevezes/' . $competition['id']) ?>" class="font-medium underline">Belépve</a>
-                            viszont előtöltjük az adataidat, másnak is nevezhetsz, és a nevezést később visszavonhatod.
-                        </p>
-                    </div>
+                        <!-- Beküldés -->
+                        <div class="pt-2">
+                            <button type="submit" class="btn btn-primary w-full" <?= $isDisabled ? 'disabled' : '' ?>>
+                                <?php if ($notYetOpen): ?>
+                                    A nevezés még nem nyílt meg
+                                <?php elseif ($isDisabled): ?>
+                                    A nevezés lezárult
+                                <?php else: ?>
+                                    Nevezés elküldése
+                                <?php endif; ?>
+                            </button>
+                        </div>
+                    </form>
+
+                    <p class="field-hint mt-5 pt-5 border-t border-sand-200">
+                        Más helyett nem tudsz nevezni. Ha valakinek nincs fiókja,
+                        a versenyszervező fel tudja venni a nevezők közé -
+                        elérhetőségei a
+                        <a href="/tarshonlapok" class="font-medium text-billiard-green-600 hover:underline">kapcsolat oldalon</a>.
+                    </p>
                 </div>
             <?php endif; ?>
         </div>
 
         <!-- ============ Jobb oldal: verseny összefoglaló ============ -->
         <aside class="lg:col-span-2 order-1 lg:order-2">
-            <div class="card overflow-hidden lg:sticky lg:top-24">
+            <div class="card overflow-hidden sticky-under-header">
 
                 <!-- Dátum sáv -->
                 <div class="flex items-center gap-4 px-6 py-5 bg-billiard-green-900 text-white">

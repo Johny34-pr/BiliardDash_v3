@@ -2,9 +2,19 @@
 /**
  * Admin verseny nevezéseinek listája
  *
+ * Itt lehet bárkit nevezni: a látogatók csak a saját nevükben nevezhetnek,
+ * a szervező viszont a klub bármely tagját, illetve fiók nélküli játékost is
+ * felvehet a névsorba.
+ *
  * @var array $competition   Verseny adatok (id, name, date, venue, registrant_count)
  * @var array $registrations Nevezések tömbje (full_name, email, phone, registered_at)
+ * @var array $users         Még nem nevezett fiókok (id, name, email, city)
+ * @var array $errors        Az előző felvitel hibái (mező => üzenet)
+ * @var array $data          Az előző felvitel adatai (sticky form)
  */
+
+/** Egységes osztálylista egy beviteli mezőhöz, hibaállapot szerint */
+$fieldClass = static fn(bool $hasError): string => 'field' . ($hasError ? ' field-error' : '');
 ?>
 <a href="/admin/versenyek" class="inline-flex items-center gap-1.5 text-sm font-medium text-sand-500 hover:text-billiard-green-700 transition-colors mb-6">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -48,6 +58,124 @@
         </a>
     <?php endif; ?>
 </header>
+
+<!--
+    Nevezés hozzáadása
+    Natív <details>, tehát JavaScript nélkül is nyitható. Hiba után nyitva
+    marad, hogy a hibaüzenet és a beírt adatok ne tűnjenek el a szem elől.
+-->
+<section class="card p-6 mb-7">
+    <details <?= ($errors !== [] ? 'open' : '') ?>>
+        <summary class="btn btn-primary w-fit">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            Nevezés hozzáadása
+        </summary>
+
+        <p class="text-sm text-sand-500 mt-4">
+            A látogatók csak a saját nevükben nevezhetnek. Szervezőként bárkit
+            felvehetsz: a klub tagjait a listából, fiók nélküli játékost pedig
+            kézzel.
+        </p>
+
+        <div class="grid gap-6 lg:grid-cols-2 mt-5">
+
+            <!-- 1. Klub tagja: a nevezés a fiókjához kötődik -->
+            <form method="POST" action="/admin/versenyek/<?= e($competition['id']) ?>/nevezesek"
+                  class="p-4 rounded-xl bg-sand-50 border border-sand-200">
+                <input type="hidden" name="mode" value="member">
+
+                <h2 class="font-semibold text-billiard-green-900 mb-1">A klub tagja</h2>
+                <p class="text-sm text-sand-500 mb-4">
+                    A nevezés a fiókjához kötődik, ezért a tag a saját fiókjában
+                    is látja, és a határidőig visszavonhatja.
+                </p>
+
+                <?php if ($users === []): ?>
+                    <p class="field-hint">
+                        Minden regisztrált tag nevezett már erre a versenyre,
+                        vagy még nincs regisztrált fiók.
+                    </p>
+                <?php else: ?>
+                    <label for="user_id" class="label">Tag kiválasztása</label>
+                    <select id="user_id" name="user_id" required
+                            class="<?= $fieldClass(isset($errors['user_id'])) ?>"
+                            <?= isset($errors['user_id']) ? 'aria-describedby="user_id-error" aria-invalid="true"' : '' ?>>
+                        <option value="">Válassz tagot…</option>
+                        <?php foreach ($users as $user): ?>
+                            <option value="<?= e($user['id']) ?>">
+                                <?= e($user['name']) ?> &middot; <?= e($user['email']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if (isset($errors['user_id'])): ?>
+                        <p id="user_id-error" class="field-message" role="alert"><?= e($errors['user_id']) ?></p>
+                    <?php endif; ?>
+
+                    <button type="submit" class="btn btn-primary btn-sm mt-4">Nevezés rögzítése</button>
+                <?php endif; ?>
+            </form>
+
+            <!-- 2. Fiók nélküli játékos: vendégnevezés -->
+            <form method="POST" action="/admin/versenyek/<?= e($competition['id']) ?>/nevezesek"
+                  class="p-4 rounded-xl bg-sand-50 border border-sand-200 space-y-4"
+                  novalidate>
+                <input type="hidden" name="mode" value="guest">
+
+                <div>
+                    <h2 class="font-semibold text-billiard-green-900 mb-1">Fiók nélküli játékos</h2>
+                    <p class="text-sm text-sand-500">
+                        A nevezés vendégnevezésként kerül a névsorba, fiókhoz
+                        nem kötődik.
+                    </p>
+                </div>
+
+                <div>
+                    <label for="guest_full_name" class="label">Teljes név</label>
+                    <input type="text" id="guest_full_name" name="full_name"
+                           value="<?= e($data['fullName'] ?? '') ?>"
+                           required maxlength="100" autocomplete="off"
+                           class="<?= $fieldClass(isset($errors['fullName'])) ?>"
+                           <?= isset($errors['fullName']) ? 'aria-describedby="guest_full_name-error" aria-invalid="true"' : '' ?>>
+                    <?php if (isset($errors['fullName'])): ?>
+                        <p id="guest_full_name-error" class="field-message" role="alert"><?= e($errors['fullName']) ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div>
+                    <label for="guest_email" class="label">E-mail cím</label>
+                    <input type="email" id="guest_email" name="email"
+                           value="<?= e($data['email'] ?? '') ?>"
+                           required autocomplete="off"
+                           class="<?= $fieldClass(isset($errors['email'])) ?>"
+                           <?= isset($errors['email'])
+                                ? 'aria-describedby="guest_email-error" aria-invalid="true"'
+                                : 'aria-describedby="guest_email-hint"' ?>>
+                    <?php if (isset($errors['email'])): ?>
+                        <p id="guest_email-error" class="field-message" role="alert"><?= e($errors['email']) ?></p>
+                    <?php else: ?>
+                        <p id="guest_email-hint" class="field-hint">Ide megy a visszaigazolás.</p>
+                    <?php endif; ?>
+                </div>
+
+                <div>
+                    <label for="guest_phone" class="label">Telefonszám</label>
+                    <input type="tel" id="guest_phone" name="phone"
+                           value="<?= e($data['phone'] ?? '') ?>"
+                           required autocomplete="off"
+                           class="<?= $fieldClass(isset($errors['phone'])) ?>"
+                           <?= isset($errors['phone']) ? 'aria-describedby="guest_phone-error" aria-invalid="true"' : '' ?>>
+                    <?php if (isset($errors['phone'])): ?>
+                        <p id="guest_phone-error" class="field-message" role="alert"><?= e($errors['phone']) ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <button type="submit" class="btn btn-secondary btn-sm">Nevezés rögzítése</button>
+            </form>
+        </div>
+    </details>
+</section>
 
 <?php if (empty($registrations)): ?>
     <div class="empty-state">

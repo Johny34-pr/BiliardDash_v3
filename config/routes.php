@@ -20,6 +20,9 @@ $router->get('/robots.txt', 'SitemapController@robots');
 $router->get('/', 'HomeController@index');
 $router->get('/hirek/{id}', 'NewsController@show');
 $router->get('/galeria', 'GalleryController@index');
+// Az "archiv" a paraméteres minta ELŐTT szerepel, hogy ne album
+// azonosítóként értelmeződjön
+$router->get('/galeria/archiv', 'GalleryController@archive');
 $router->get('/galeria/{albumId}', 'GalleryController@show');
 $router->get('/nevezes', 'CompetitionController@index');
 
@@ -28,11 +31,25 @@ $router->get('/nevezes', 'CompetitionController@index');
 $router->get('/rolunk', 'PageController@about');
 $router->get('/emlekoldal', 'PageController@memorial');
 $router->get('/tarshonlapok', 'PageController@partners');
+$router->get('/csapataink', 'PageController@teams');
 $router->get('/adatkezeles', 'PageController@privacy');
 // A nevezői lista belépés nélkül is elérhető (csak nevek, elérhetőségek nélkül)
 $router->get('/nevezes/{versenyId}/nevezok', 'CompetitionController@registrants');
 $router->get('/nevezes/{versenyId}', 'CompetitionController@showForm');
 $router->post('/nevezes/{versenyId}', 'CompetitionController@submitRegistration');
+
+// === Ranglista (kapcsolható modul) ===
+//
+// A szezon pontversenye. Kikapcsolt állapotban az útvonalai nincsenek is
+// regisztrálva, ezért a router 404-et ad rájuk - ugyanaz a minta, mint a
+// fórumnál.
+if (rankingEnabled()) {
+    $router->get('/ranglista', 'RankingController@index');
+    // Az "archiv" a paraméteres minta ELŐTT szerepel, hogy ne szezon
+    // azonosítóként értelmeződjön
+    $router->get('/ranglista/archiv', 'RankingController@archive');
+    $router->get('/ranglista/{seasonId}', 'RankingController@show');
+}
 
 // === Fórum (kommentelés vendégként és belépve) ===
 //
@@ -59,9 +76,12 @@ $router->get('/belepes', 'AuthController@loginForm');
 $router->post('/belepes', 'AuthController@login');
 $router->get('/kilepes', 'AuthController@logout');
 
-// Fiók - saját nevezések kezelése
+// Fiók - saját nevezések és jelszó kezelése
 $router->get('/fiok', 'AuthController@account');
 $router->post('/fiok/nevezes/{id}/visszavonas', 'AuthController@deleteRegistration');
+// Saját jelszó megváltoztatása: a szervezői visszaállítás után a tag
+// lecserélheti a generált jelszót megjegyezhetőre
+$router->post('/fiok/jelszo', 'AuthController@changePassword');
 
 // === Admin útvonalak (session-alapú autentikáció szükséges) ===
 
@@ -92,6 +112,7 @@ $router->post('/admin/galeria/{id}/feltolt', 'AdminController@imageUpload');
 $router->get('/admin/galeria/{id}/helyezettek', 'AdminController@placementList');
 $router->post('/admin/galeria/{id}/helyezettek', 'AdminController@placementStore');
 $router->post('/admin/galeria/{id}/boritokep', 'AdminController@albumSetCover');
+$router->post('/admin/galeria/{id}/archivalas', 'AdminController@albumToggleArchived');
 $router->post('/admin/galeria/{id}/szerkeszt', 'AdminController@albumUpdate');
 $router->post('/admin/galeria/{id}/torol', 'AdminController@albumDelete');
 
@@ -102,7 +123,10 @@ $router->post('/admin/versenyek/uj', 'AdminController@competitionStore');
 $router->get('/admin/versenyek/{id}/szerkeszt', 'AdminController@competitionEdit');
 $router->post('/admin/versenyek/{id}/szerkeszt', 'AdminController@competitionUpdate');
 $router->post('/admin/versenyek/{id}/torol', 'AdminController@competitionDelete');
+// Körlevél a tagoknak: versenykiírás vagy a nevezés megnyílása
+$router->post('/admin/versenyek/{id}/ertesites', 'AdminController@competitionNotify');
 $router->get('/admin/versenyek/{id}/nevezesek', 'AdminController@registrationList');
+$router->post('/admin/versenyek/{id}/nevezesek', 'AdminController@registrationStore');
 $router->get('/admin/versenyek/{id}/export', 'AdminController@exportCsv');
 // Egy konkrét nevezés törlése szervezői jogkörben
 $router->post('/admin/versenyek/nevezes/{id}/torol', 'AdminController@registrationDelete');
@@ -118,6 +142,8 @@ $router->get('/admin/media/hivatkozasok', 'AdminMediaController@linkList');
 $router->get('/admin/felhasznalok', 'AdminController@userList');
 $router->get('/admin/felhasznalok/{id}/szerkeszt', 'AdminController@userEdit');
 $router->post('/admin/felhasznalok/{id}/szerkeszt', 'AdminController@userUpdate');
+// Jelszó visszaállítása: a rendszer új jelszót generál, a szervező adja át
+$router->post('/admin/felhasznalok/{id}/jelszo', 'AdminController@userResetPassword');
 $router->post('/admin/felhasznalok/{id}/torol', 'AdminController@userDelete');
 
 // Admin - Tartalmi oldalak (Rólunk, Emlékoldal, Adatkezelési tájékoztató)
@@ -130,6 +156,27 @@ $router->post('/admin/oldalak/{id}/szerkeszt', 'AdminController@pageUpdate');
 // Admin - Oldalbeállítások (a kapcsolható modulok itt állíthatók)
 $router->get('/admin/beallitasok', 'AdminController@settings');
 $router->post('/admin/beallitasok', 'AdminController@settingsUpdate');
+
+// Admin - Szezonok. A szezon két helyen rendez: a galéria archívumában és a
+// ranglistán, ezért a kezelése önálló felület.
+$router->get('/admin/szezonok', 'AdminController@seasonList');
+$router->post('/admin/szezonok/uj', 'AdminController@seasonStore');
+$router->post('/admin/szezonok/{id}/szerkeszt', 'AdminController@seasonUpdate');
+$router->post('/admin/szezonok/{id}/aktualis', 'AdminController@seasonMakeCurrent');
+$router->post('/admin/szezonok/{id}/archivalas', 'AdminController@seasonToggleArchived');
+$router->post('/admin/szezonok/{id}/torol', 'AdminController@seasonDelete');
+
+// Admin - Ranglista pontszámok
+// A "pont/..." útvonalak a paraméteres verseny-minta ELŐTT szerepelnek, hogy
+// a "pont" szó ne versenyazonosítóként értelmeződjön.
+if (rankingEnabled()) {
+    $router->get('/admin/ranglista', 'AdminController@rankingList');
+    $router->post('/admin/ranglista/pont/{id}/szerkeszt', 'AdminController@rankingEntryUpdate');
+    $router->post('/admin/ranglista/pont/{id}/torol', 'AdminController@rankingEntryDelete');
+    $router->get('/admin/ranglista/{competitionId}', 'AdminController@rankingEdit');
+    $router->post('/admin/ranglista/{competitionId}', 'AdminController@rankingEntryStore');
+    $router->post('/admin/ranglista/{competitionId}/atvetel', 'AdminController@rankingImport');
+}
 
 // Admin - Fórum moderálás
 // Csak akkor elérhető, ha a fórum modul aktív: kikapcsolt fórumnál nincs

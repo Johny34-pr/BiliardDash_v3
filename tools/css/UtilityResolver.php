@@ -253,6 +253,14 @@ final class UtilityResolver
             'resize-x' => ['resize' => 'horizontal'],
             'resize-y' => ['resize' => 'vertical'],
             'appearance-none' => ['-webkit-appearance' => 'none', 'appearance' => 'none'],
+
+            // Szövegkijelölés. A select-all egy kattintással kijelöli az egész
+            // elemet - a szervezői felületen a generált jelszó átvételéhez kell.
+            'select-none' => ['-webkit-user-select' => 'none', 'user-select' => 'none'],
+            'select-text' => ['-webkit-user-select' => 'text', 'user-select' => 'text'],
+            'select-all' => ['-webkit-user-select' => 'all', 'user-select' => 'all'],
+            'select-auto' => ['-webkit-user-select' => 'auto', 'user-select' => 'auto'],
+
             'align-middle' => ['vertical-align' => 'middle'],
             'align-top' => ['vertical-align' => 'top'],
             'align-bottom' => ['vertical-align' => 'bottom'],
@@ -864,6 +872,20 @@ final class UtilityResolver
         if (preg_match('/^grid-(cols|rows)-(\d+)$/', $utility, $m) === 1) {
             $property = $m[1] === 'cols' ? 'grid-template-columns' : 'grid-template-rows';
             return [$property => 'repeat(' . $m[2] . ',minmax(0,1fr))'];
+        }
+
+        /*
+         * Egyedi rácsfelosztás: grid-cols-[1fr_auto_auto].
+         *
+         * Az egyenlő szélességű oszlopok (grid-cols-3) nem mindig jók: egy
+         * űrlapsorban a szövegmező nyúljon, a gomb viszont csak annyi helyet
+         * kapjon, amennyi kell. Az aláhúzás szóközt jelöl, mert a CSS
+         * osztálynévben szóköz nem lehet.
+         */
+        if (preg_match('/^grid-(cols|rows)-\[(.+)\]$/', $utility, $m) === 1) {
+            $property = $m[1] === 'cols' ? 'grid-template-columns' : 'grid-template-rows';
+
+            return [$property => str_replace('_', ' ', $m[2])];
         }
 
         if (preg_match('/^(col|row)-span-(\d+)$/', $utility, $m) === 1) {

@@ -90,6 +90,25 @@ class User
     }
 
     /**
+     * Minden regisztrált fiók neve és e-mail címe.
+     *
+     * A körlevelek címzettlistája. Szándékosan nem a findAll()-t használjuk
+     * hozzá: ott a nevezésszámot is összeszámoljuk, ami itt felesleges munka.
+     *
+     * @return array<array{name:string, email:string}>
+     */
+    public function findAllForMailing(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT name, email
+             FROM users
+             ORDER BY name ASC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    /**
      * Új felhasználó létrehozása.
      *
      * @param string $passwordHash Már hashelt jelszó (password_hash())

@@ -39,7 +39,12 @@ $menuInitials = static function (string $name): string {
     return $letters !== '' ? $letters : '?';
 };
 ?>
-<div class="hidden md:block relative ml-2 pl-3 border-l border-white/15">
+<!--
+    A bal oldali elválasztó vonal elmaradt: a menü a fejléc felső sávjának jobb
+    szélén áll, nem közvetlenül a menüpontok után, ezért nem lenne mit
+    elválasztania.
+-->
+<div class="hidden md:block relative">
 
     <button id="account-toggle" type="button"
             class="account-trigger nav-link"
@@ -98,10 +103,6 @@ $menuInitials = static function (string $name): string {
                     Kilépés a fiókból
                 </a>
             <?php else: ?>
-                <p class="account-hint">
-                    Nevezéshez és a fórumhoz nem kötelező, de belépve előtöltjük az
-                    adataidat, és visszavonhatod a nevezéseidet.
-                </p>
                 <a href="/belepes" class="account-item" role="menuitem">
                     <svg class="w-4 h-4 text-sand-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"/>

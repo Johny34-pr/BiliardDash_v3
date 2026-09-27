@@ -96,7 +96,7 @@ $initials = static function (string $name): string {
     </article>
 
     <!-- ===================== Hozzászólások ===================== -->
-    <section id="hozzaszolasok" aria-labelledby="comment-list" class="scroll-mt-24">
+    <section id="hozzaszolasok" aria-labelledby="comment-list" class="anchor-offset">
         <div class="flex items-end justify-between gap-4 mb-5">
             <h2 id="comment-list" class="text-xl font-bold tracking-tightest text-billiard-green-900">
                 Hozzászólások
@@ -128,7 +128,7 @@ $initials = static function (string $name): string {
                     $myVote = $myVotes[$comment['id']] ?? 0;
                     $score = (int) $comment['upvotes'] - (int) $comment['downvotes'];
                     ?>
-                    <li class="card p-5 scroll-mt-24" id="hozzaszolas-<?= e($comment['id']) ?>">
+                    <li class="card p-5 anchor-offset" id="hozzaszolas-<?= e($comment['id']) ?>">
                         <div class="flex items-start gap-3 sm:gap-4">
 
                             <!-- Értékelés: fel, pontszám, le -->

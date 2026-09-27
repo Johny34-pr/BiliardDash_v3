@@ -44,6 +44,7 @@ class LinkTargetService
         $list = [
             ['title' => 'Főoldal (hírek)', 'value' => '/'],
             ['title' => 'Galéria', 'value' => '/galeria'],
+            ['title' => 'Archív galéria', 'value' => '/galeria/archiv'],
             ['title' => 'Versenyek és nevezés', 'value' => '/nevezes'],
             ['title' => 'Rólunk', 'value' => '/rolunk'],
             ['title' => 'Emlékoldal', 'value' => '/emlekoldal'],

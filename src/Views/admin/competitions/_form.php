@@ -5,10 +5,12 @@
  * A létrehozó és szerkesztő nézet is ezt tölti be, így a mezők, validációs
  * hibák és súgók egy helyen módosíthatók.
  *
- * @var string $formAction  Az űrlap action attribútuma
- * @var string $submitLabel A beküldő gomb felirata
- * @var array  $errors      Validációs hibák
- * @var array  $data        Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
+ * @var string    $formAction         Az űrlap action attribútuma
+ * @var string    $submitLabel        A beküldő gomb felirata
+ * @var array     $errors             Validációs hibák
+ * @var array     $data               Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
+ * @var bool|null $showNotifyOption   Megjelenjen-e az "értesítés kiküldése" mező
+ * @var int|null  $recipientCount     Hány tag kapná meg az értesítést
  */
 ?>
 <form method="POST" action="<?= e($formAction) ?>" class="card p-6 md:p-8 space-y-6" novalidate data-validate>
@@ -102,6 +104,36 @@
             <p class="field-hint">Legfeljebb 200 karakter.</p>
         <?php endif; ?>
     </div>
+
+    <?php if (!empty($showNotifyOption)): ?>
+        <!--
+            Értesítés a tagoknak
+            Csak a LÉTREHOZÓ űrlapon jelenik meg: a szerkesztésnél egy
+            bejelölt mező azt sugallná, hogy minden mentés újra körlevelet
+            küld. Utólag a versenylistából küldhető ki.
+
+            A mező alapból be van jelölve, mert a versenykiírás rendes menete
+            az, hogy a tagok értesülnek róla.
+        -->
+        <div class="pt-2 border-t border-sand-200">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" name="notify" value="1" checked
+                       class="mt-1 w-5 h-5 rounded border-sand-300 text-billiard-green-600"
+                       aria-describedby="notify-hint">
+                <span>
+                    <span class="font-medium text-sand-900">Értesítés kiküldése a tagoknak</span>
+                    <span id="notify-hint" class="block text-sm text-sand-500 mt-0.5">
+                        <?php if (!empty($recipientCount)): ?>
+                            <?= (int) $recipientCount ?> regisztrált tag kap e-mailt a versenykiírásról.
+                        <?php else: ?>
+                            Jelenleg nincs regisztrált tag, akinek ki lehetne küldeni.
+                        <?php endif; ?>
+                        A nevezés megnyílásáról külön levél megy ki.
+                    </span>
+                </span>
+            </label>
+        </div>
+    <?php endif; ?>
 
     <!-- Műveletek -->
     <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-sand-200">

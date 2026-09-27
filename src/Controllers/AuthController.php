@@ -194,6 +194,7 @@ class AuthController
 
         $user = Session::user();
         $registrations = $this->competitionService->getRegistrationsByUser($user['id']);
+        $passwordErrors = Session::getFlash('password_errors') ?: [];
 
         $pageTitle = 'Fiókom - Okányi Biliárd Klub';
 
@@ -202,6 +203,63 @@ class AuthController
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Saját jelszó megváltoztatása.
+     *
+     * Erre a szervezői jelszó-visszaállítás után van a legnagyobb szükség: a
+     * generált, véletlen jelszót a tag lecserélheti megjegyezhetőre. A
+     * jelenlegi jelszót is kérjük, hogy egy eltulajdonított munkamenettel ne
+     * lehessen kizárni a fiók tulajdonosát.
+     */
+    public function changePassword(): void
+    {
+        $this->requireUser();
+
+        $userId = Session::userId();
+
+        $current = $_POST['current_password'] ?? '';
+        $new = $_POST['new_password'] ?? '';
+        $confirm = $_POST['new_password_confirm'] ?? '';
+
+        $errors = [];
+
+        if ($current === '') {
+            $errors['currentPassword'] = 'Add meg a jelenlegi jelszavadat';
+        }
+
+        if (mb_strlen($new) < AuthService::MIN_PASSWORD_LENGTH) {
+            $errors['newPassword'] = 'A jelszó legalább ' . AuthService::MIN_PASSWORD_LENGTH . ' karakter legyen';
+        }
+
+        if ($new !== $confirm) {
+            $errors['newPasswordConfirm'] = 'A két jelszó nem egyezik';
+        }
+
+        if ($errors !== []) {
+            Session::flash('password_errors', $errors);
+            redirect('/fiok');
+            return;
+        }
+
+        try {
+            $this->authService->changeOwnPassword($userId, $current, $new);
+
+            // A jelszóváltás minden MÁS eszközön kilépteti a felhasználót.
+            // Ez itt szándékos: ha azért cserél jelszót, mert illetéktelen
+            // hozzáférést gyanít, a régi süti ne léptessen be tovább.
+            $this->rememberMeService->forgetAllForUser($userId);
+
+            Session::flash('success', 'A jelszavad megváltozott. A többi eszközödön ki kell lépned és újra belépned.');
+        } catch (AppException $e) {
+            Session::flash('password_errors', ['currentPassword' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            error_log('[AuthController] Jelszóváltási hiba: ' . $e->getMessage());
+            Session::flash('error', 'A jelszó módosítása nem sikerült. Kérjük, próbálja újra.');
+        }
+
+        redirect('/fiok');
     }
 
     /**

@@ -5,7 +5,9 @@
  * A táblázat mobilon vízszintesen görgethető (.table-scroll), így nem
  * keletkezik vízszintes oldalgörgetés (Requirement 7.1).
  *
- * @var array $competitions Versenyek tömbje
+ * @var array $competitions      Versenyek tömbje
+ * @var array $sentNotifications Verseny => [értesítés fajtája => true]
+ * @var int   $recipientCount    Hány tag kapná meg a körlevelet
  */
 $now = new DateTimeImmutable();
 ?>
@@ -49,6 +51,7 @@ $now = new DateTimeImmutable();
                         <th scope="col">Nevezés nyitása</th>
                         <th scope="col">Nevezési határidő</th>
                         <th scope="col" class="text-center">Nevezők</th>
+                        <th scope="col">Értesítés</th>
                         <th scope="col" class="text-right">Műveletek</th>
                     </tr>
                 </thead>
@@ -62,6 +65,11 @@ $now = new DateTimeImmutable();
                         $notYetOpen = $opensAt !== null && $opensAt > $now;
                         $deadlinePassed = new DateTimeImmutable($competition['registration_deadline']) <= $now;
                         $isOpen = !$notYetOpen && !$deadlinePassed;
+
+                        // Melyik körlevél ment már ki erről a versenyről
+                        $sent = $sentNotifications[$competition['id']] ?? [];
+                        $announcedSent = isset($sent[\App\Models\CompetitionNotification::KIND_ANNOUNCED]);
+                        $openSent = isset($sent[\App\Models\CompetitionNotification::KIND_REGISTRATION_OPEN]);
                         ?>
                         <tr>
                             <td>
@@ -98,6 +106,40 @@ $now = new DateTimeImmutable();
                                 <span class="badge badge-neutral tabular-nums">
                                     <?= (int)$competition['registrant_count'] ?>
                                 </span>
+                            </td>
+                            <!--
+                                Értesítések állapota és kiküldése
+                                A kiment körlevél nem küldhető újra: a gomb
+                                helyén jelvény jelenik meg. A kétszeres
+                                kiküldést az adatbázis is kizárja, ez csak a
+                                felület oldali visszajelzés.
+                            -->
+                            <td>
+                                <div class="flex flex-col items-start gap-1.5">
+                                    <?php if ($announcedSent): ?>
+                                        <span class="badge badge-green">Kiírás kiküldve</span>
+                                    <?php else: ?>
+                                        <form method="POST" action="/admin/versenyek/<?= e($competition['id']) ?>/ertesites"
+                                              data-confirm="Kiküldjük a versenykiírást <?= (int) $recipientCount ?> tagnak. Ez egyszer küldhető el. Folytatod?">
+                                            <input type="hidden" name="kind" value="announced">
+                                            <button type="submit" class="btn btn-ghost btn-sm">Kiírás küldése</button>
+                                        </form>
+                                    <?php endif; ?>
+
+                                    <?php if ($openSent): ?>
+                                        <span class="badge badge-green">Nevezés kiküldve</span>
+                                    <?php elseif ($notYetOpen): ?>
+                                        <span class="badge badge-neutral" title="A nevezés megnyílásakor automatikusan kimegy">
+                                            Nevezés: várakozik
+                                        </span>
+                                    <?php elseif (!$deadlinePassed): ?>
+                                        <form method="POST" action="/admin/versenyek/<?= e($competition['id']) ?>/ertesites"
+                                              data-confirm="Kiküldjük a nevezésindítási értesítést <?= (int) $recipientCount ?> tagnak. Ez egyszer küldhető el. Folytatod?">
+                                            <input type="hidden" name="kind" value="registration_open">
+                                            <button type="submit" class="btn btn-ghost btn-sm">Nevezés küldése</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                             <td>
                                 <div class="flex items-center justify-end gap-2">

@@ -13,16 +13,11 @@ declare(strict_types=1);
  * KITÖLTÉSRE VÁRÓ ÉRTÉKEK
  * -----------------------
  * Az üresen hagyott ('') mezők egyszerűen nem jelennek meg az oldalon, ezért
- * a hiányzó adat nem okoz csonka megjelenést. Az alábbiakat érdemes kitölteni:
+ * a hiányzó adat nem okoz csonka megjelenést. Ami még hiányzik:
  *
- *   - partners.mbbe.url         Az MBBE hivatalos címe. Figyelem: az mbbe.hu
- *                               domain a Magyar Betonburkolat Egyesületé, tehát
- *                               NEM ez a keresett oldal.
- *   - venue.address, phone, opening_hours
- *   - contact_person.phone
- *   - social.*.url              Facebook oldal, csoport, Eurokegel csoport
- *
- * A már ismert adatok (Eurokegel címe, info@okanyibiliard.hu) ki vannak töltve.
+ *   - venue.opening_hours       A terem nyitvatartása
+ *   - venue.phone               Kikommentezve: a terem külön száma, ha van.
+ *                               Nélküle a kapcsolattartó száma az elérhetőség.
  */
 
 return [
@@ -45,7 +40,7 @@ return [
             'name' => 'MBBE',
             'url' => 'https://www.magyarbiliard.com',
             'description' => 'A versenyszezon kiírásáért és a hivatalos '
-                . 'versenyrendszerért felelős szövetség. Itt találhatók a szezonra '
+                . 'versenyrendszerért felelős egyesület, a Magyar Biliárd Szövetség bábus szakága. Itt találhatók a szezonra '
                 . 'vonatkozó döntések, a versenynaptár és a hivatalos szabályzatok.',
         ],
     ],
@@ -64,12 +59,31 @@ return [
 
     /*
      * Kapcsolattartó személy.
+     *
+     * A "versenyszervező" megjelölés átkerült a competition_organizer
+     * bejegyzésre: két, versenyszervezőként feltüntetett név félrevezető
+     * lenne, a látogatónak tudnia kell, versenyügyben kit keressen.
      */
     'contact_person' => [
         'name' => 'Hőgyes Attila',
-        'role' => 'Kapcsolattartó, versenyszervező',
-        'phone' => '06-30-279-2828',
-        'email' => 'hogyes.attila@okanyibiliard.hu',
+        'role' => 'Versenyszervező',
+        'phone' => '+36 30 279 2828',
+        'email' => 'info@okanyibiliard.hu',
+    ],
+
+    /*
+     * Versenyszervező: a versenykiírásokkal, a nevezéssel és a lebonyolítással
+     * kapcsolatos kérdések címzettje.
+     *
+     * A telefonszám nemzetközi alakban áll, mert a kapcsolat oldal tel:
+     * hivatkozást készít belőle, és a +36 előtag külföldről is hívható.
+     * A 06 30 409 1869 és a +36 30 409 1869 ugyanaz a szám.
+     */
+    'competition_organizer' => [
+        'name' => 'Kincses László',
+        'role' => 'Verseny lebonyolításában segítséget nyújt',
+        'phone' => '+36 30 409 1869',
+        'email' => 'kincses.lszl@gmail.com',
     ],
 
     /*

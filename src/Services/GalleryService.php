@@ -173,6 +173,103 @@ class GalleryService
     }
 
     /**
+     * Az archivált albumok száma.
+     *
+     * A galéria fejléce ebből tudja, érdemes-e kiírni az archívumra vezető
+     * hivatkozást: nulla archív albumnál a link üres oldalra vinne.
+     */
+    public function countArchivedAlbums(): int
+    {
+        return $this->albumModel->countArchived();
+    }
+
+    /**
+     * Archivált albumok szezononként csoportosítva.
+     *
+     * Az archívum a régebbi évadok versenyeit gyűjti, ezért a szezon a
+     * rendező elv, nem a feltöltés dátuma. A szezon nélküli albumok egy
+     * külön, névtelen csoportba kerülnek a lista végén - így nem tűnnek el
+     * azok sem, amelyekhez a szervező még nem adott meg évadot.
+     *
+     * @return array<array{season:?string, albums:array<array<string, mixed>>}>
+     */
+    public function getArchivedAlbumsBySeason(): array
+    {
+        $albums = $this->getAlbumsForListing(true);
+
+        if ($albums === []) {
+            return [];
+        }
+
+        /** @var array<string, array{season:?string, albums:array}> $groups */
+        $groups = [];
+
+        foreach ($albums as $album) {
+            // A csoportkulcs nem lehet null, ezért a szezon nélküli albumok
+            // egy üres kulcsú csoportba kerülnek
+            $key = $album['season_name'] ?? '';
+
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'season' => $album['season_name'],
+                    'albums' => [],
+                ];
+            }
+
+            $groups[$key]['albums'][] = $album;
+        }
+
+        // A szezon nélküli csoport a lista végére kerül
+        $withoutSeason = $groups[''] ?? null;
+        unset($groups['']);
+
+        $result = array_values($groups);
+
+        if ($withoutSeason !== null) {
+            $result[] = $withoutSeason;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Album archiválása vagy visszahelyezése az aktuális galériába.
+     *
+     * @throws RuntimeException Ha az album nem létezik.
+     */
+    public function setAlbumArchived(string $albumId, bool $archived): string
+    {
+        $album = $this->albumModel->findById($albumId);
+
+        if ($album === null) {
+            throw new RuntimeException('Az album nem található.');
+        }
+
+        $this->albumModel->updateArchived($albumId, $archived);
+
+        return $album['name'];
+    }
+
+    /**
+     * Album szezonjának beállítása.
+     *
+     * Az üres érték a "nincs megadva" állapotot jelenti, ezért null-ra
+     * alakul: az idegen kulcs üres stringet nem fogadna el.
+     *
+     * @throws RuntimeException Ha az album nem létezik.
+     */
+    public function setAlbumSeason(string $albumId, ?string $seasonId): void
+    {
+        if ($this->albumModel->findById($albumId) === null) {
+            throw new RuntimeException('Az album nem található.');
+        }
+
+        $seasonId = trim((string) $seasonId);
+
+        $this->albumModel->updateSeason($albumId, $seasonId === '' ? null : $seasonId);
+    }
+
+    /**
      * Albumok a galéria listájához: borítókép és a dobogósok.
      *
      * A galéria minden albumot a borítóképével jelöl, alatta a dobogóval.
@@ -185,11 +282,18 @@ class GalleryService
      * szolgál borítóként. Így egy hiányzó beállítás nem üres kártyát
      * eredményez.
      *
-     * @return array<array{id:string, name:string, image_count:int, created_at:string, cover_url:?string, cover_full_url:?string, cover_alt:string, placements:array}>
+     * A kártya képe a KÖZEPES méret, nem a bélyegkép: a 200x200-as bélyeg a
+     * 4:3-as kártyaterületre kifeszítve lágy és levágott volt. A bélyegkép
+     * ettől nem lesz feleslegessé - kis méretű változatként bekerül a
+     * srcset-be, és a közepes méret hiányában (régi kép) tartalékként áll.
+     *
+     * @param bool|null $archived null = mindegyik, false = csak az aktuális,
+     *                            true = csak az archivált albumok
+     * @return array<array{id:string, name:string, image_count:int, created_at:string, season_name:?string, is_archived:bool, cover_url:?string, cover_thumb_url:?string, cover_full_url:?string, cover_alt:string, placements:array}>
      */
-    public function getAlbumsForListing(): array
+    public function getAlbumsForListing(?bool $archived = false): array
     {
-        $albums = $this->albumModel->findAllWithCover();
+        $albums = $this->albumModel->findAllWithCover($archived);
 
         if ($albums === []) {
             return [];
@@ -213,22 +317,31 @@ class GalleryService
         $listing = [];
         foreach ($albums as $album) {
             $thumb = $album['cover_thumbnail_path'];
+            $medium = $album['cover_medium_path'];
             $full = $album['cover_full_path'];
             $alt = $album['cover_alt_text'];
 
             if ($full === null && isset($fallbackImages[$album['id']])) {
                 $fallback = $fallbackImages[$album['id']];
                 $thumb = $fallback['thumbnail_path'];
+                $medium = $fallback['medium_path'];
                 $full = $fallback['full_path'];
                 $alt = $fallback['alt_text'];
             }
+
+            // A megjelenítendő kép a közepes méret; ha még nincs (a
+            // medium_path oszlop utólag került a táblába), a bélyegkép áll be
+            $display = $medium ?? $thumb;
 
             $listing[] = [
                 'id' => $album['id'],
                 'name' => $album['name'],
                 'image_count' => (int) $album['image_count'],
                 'created_at' => $album['created_at'],
-                'cover_url' => $thumb !== null ? '/' . $thumb : null,
+                'season_name' => $album['season_name'],
+                'is_archived' => (int) $album['is_archived'] === 1,
+                'cover_url' => $display !== null ? '/' . $display : null,
+                'cover_thumb_url' => $thumb !== null ? '/' . $thumb : null,
                 'cover_full_url' => $full !== null ? '/' . $full : null,
                 'cover_alt' => $alt ?? $album['name'],
                 'placements' => $placements[$album['id']] ?? [],
@@ -383,7 +496,7 @@ class GalleryService
      * Csak a public/uploads/albums/ alatti könyvtárat törli: a realpath
      * ellenőrzés megakadályozza, hogy egy manipulált azonosító a könyvtáron
      * kívülre mutasson. Nem rekurzív a végtelenségig, mert a szerkezet
-     * ismert és fix: {album}/full és {album}/thumb.
+     * ismert és fix: {album}/full, {album}/medium és {album}/thumb.
      */
     private function removeAlbumDirectory(string $albumId): void
     {
@@ -400,7 +513,7 @@ class GalleryService
             return;
         }
 
-        foreach (['full', 'thumb'] as $subDir) {
+        foreach (['full', 'medium', 'thumb'] as $subDir) {
             $path = $albumDir . DIRECTORY_SEPARATOR . $subDir;
 
             if (!is_dir($path)) {
@@ -450,22 +563,20 @@ class GalleryService
 
         // Útvonalak meghatározása (relatív a public könyvtárhoz)
         $relativeFull = 'uploads/albums/' . $albumId . '/full/' . $filename;
+        $relativeMedium = 'uploads/albums/' . $albumId . '/medium/' . $filename;
         $relativeThumb = 'uploads/albums/' . $albumId . '/thumb/' . $filename;
 
         // Abszolút útvonalak a fájlrendszeren
         $publicDir = dirname(__DIR__, 2) . '/public/';
         $fullPath = $publicDir . $relativeFull;
+        $mediumPath = $publicDir . $relativeMedium;
         $thumbPath = $publicDir . $relativeThumb;
 
         // Könyvtárak létrehozása ha szükséges
-        $fullDir = dirname($fullPath);
-        $thumbDir = dirname($thumbPath);
-
-        if (!is_dir($fullDir)) {
-            mkdir($fullDir, 0755, true);
-        }
-        if (!is_dir($thumbDir)) {
-            mkdir($thumbDir, 0755, true);
+        foreach ([dirname($fullPath), dirname($mediumPath), dirname($thumbPath)] as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
         }
 
         // Fájl áthelyezés
@@ -482,13 +593,29 @@ class GalleryService
             throw new RuntimeException('Bélyegkép generálás sikertelen.');
         }
 
+        // Közepes méret a megjelenítéshez. A galéria kártyái és az album
+        // oldala ezt mutatják: a bélyegkép ide túl kicsi (kifeszítve lágy),
+        // az eredeti pedig feleslegesen nagy letöltés.
+        //
+        // Ha nem sikerül, a feltöltés nem hiúsul meg: a medium_path marad
+        // null, és a megjelenítés a bélyegképre esik vissza. Egy nem
+        // létrehozható származtatott méret miatt nem érdemes elveszíteni a
+        // már feltöltött fényképet.
+        $mediumCreated = $this->imageService->createResized($fullPath, $mediumPath);
+
+        if (!$mediumCreated) {
+            error_log('[GalleryService] A közepes méret nem készült el: ' . $relativeMedium);
+        }
+
         // DB rekord mentés
         $this->imageModel->create(
             $imageId,
             $albumId,
             $filename,
             $relativeThumb,
-            $relativeFull
+            $relativeFull,
+            null,
+            $mediumCreated ? $relativeMedium : null
         );
 
         // Album image_count növelés
@@ -532,9 +659,12 @@ class GalleryService
         $publicDir = dirname(__DIR__, 2) . '/public/';
         $fullPath = $publicDir . $image['full_path'];
         $thumbPath = $publicDir . $image['thumbnail_path'];
+        $mediumPath = ($image['medium_path'] ?? null) !== null
+            ? $publicDir . $image['medium_path']
+            : null;
 
         // Fájlok törlése
-        $this->imageService->deleteImageFiles($fullPath, $thumbPath);
+        $this->imageService->deleteImageFiles($fullPath, $thumbPath, $mediumPath);
 
         // DB rekord törlése
         $this->imageModel->delete($imageId);

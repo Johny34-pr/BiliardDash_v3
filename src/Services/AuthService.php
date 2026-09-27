@@ -162,6 +162,83 @@ class AuthService
     }
 
     /**
+     * Jelszó visszaállítása: új, véletlen jelszó beállítása.
+     *
+     * Akkor kell, ha a tag nem tud belépni, és a szervező segít neki. A
+     * generált jelszót VISSZAADJA, mert a szervezőnek át kell adnia a tagnak
+     * - telefonon vagy személyesen. Ez az egyetlen pont, ahol a jelszó nyílt
+     * szövegként megjelenik; tárolni csak a lenyomatát tároljuk.
+     *
+     * @return string Az új, nyílt szövegű jelszó
+     * @throws AppException Ha a fiók nem létezik.
+     */
+    public function resetPassword(string $id): string
+    {
+        if ($this->userModel->findById($id) === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        $password = self::generatePassword();
+
+        $this->userModel->updatePassword($id, password_hash($password, PASSWORD_DEFAULT));
+
+        return $password;
+    }
+
+    /**
+     * Saját jelszó megváltoztatása a fiókban.
+     *
+     * A régi jelszót is kérjük: enélkül egy eltulajdonított munkamenettel
+     * ki lehetne zárni a fiók tulajdonosát azzal, hogy a támadó új jelszót
+     * állít be.
+     *
+     * Erre a szervezői visszaállítás után is szükség van: a generált jelszót
+     * a tag jellemzően lecseréli valami megjegyezhetőre.
+     *
+     * @throws AppException Ha a fiók nem létezik, vagy a régi jelszó hibás.
+     */
+    public function changeOwnPassword(string $id, string $currentPassword, string $newPassword): void
+    {
+        $user = $this->userModel->findById($id);
+
+        if ($user === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        // A lenyomat csak az e-mail alapú lekérdezésben jön vissza
+        $withHash = $this->userModel->findByEmail($user['email']);
+
+        if ($withHash === null || !password_verify($currentPassword, $withHash['password_hash'])) {
+            throw new AppException('A jelenlegi jelszó nem megfelelő', AppException::VALIDATION_ERROR);
+        }
+
+        $this->userModel->updatePassword($id, password_hash($newPassword, PASSWORD_DEFAULT));
+    }
+
+    /**
+     * Felolvasható, véletlen jelszó előállítása.
+     *
+     * Az ábécéből kimaradnak a könnyen összekeverhető karakterek (0 és O,
+     * 1 és l és I), mert a jelszót jellemzően telefonon diktálják le. A
+     * hossz 12 karakter, ami a kihagyott karakterekkel is jóval a
+     * minimum fölött van.
+     *
+     * A random_int() kriptográfiailag biztonságos, szemben a rand()-dal.
+     */
+    public static function generatePassword(int $length = 12): string
+    {
+        $alphabet = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $lastIndex = strlen($alphabet) - 1;
+        $password = '';
+
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $alphabet[random_int(0, $lastIndex)];
+        }
+
+        return $password;
+    }
+
+    /**
      * Fiók törlése.
      *
      * A felhasználó nevezései megmaradnak, vendégnevezéssé válnak (a

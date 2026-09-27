@@ -125,6 +125,32 @@ class Registration
     }
 
     /**
+     * Egy fiók nevezése egy adott versenyre.
+     *
+     * A nevezés fiókhoz kötött, és mindenki a saját nevében nevez, ezért a
+     * duplikációt a fiók szerint is vizsgálni kell - nem csak e-mail alapján.
+     * Enélkül egy másik e-mail címmel ugyanaz a fiók kétszer nevezhetne.
+     *
+     * @return array{id:string, competition_id:string, created_by_user_id:?string, full_name:string, email:string, phone:string, registered_at:string}|null
+     */
+    public function findByCompetitionAndUser(string $competitionId, string $userId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, competition_id, created_by_user_id, full_name, email, phone, registered_at
+             FROM registrations
+             WHERE competition_id = :competition_id AND created_by_user_id = :user_id'
+        );
+        $stmt->execute([
+            ':competition_id' => $competitionId,
+            ':user_id' => $userId,
+        ]);
+
+        $result = $stmt->fetch();
+
+        return $result !== false ? $result : null;
+    }
+
+    /**
      * Nevezés keresése verseny ID és email alapján (duplikáció ellenőrzéshez).
      *
      * @return array{id:string, competition_id:string, created_by_user_id:?string, full_name:string, email:string, phone:string, registered_at:string}|null

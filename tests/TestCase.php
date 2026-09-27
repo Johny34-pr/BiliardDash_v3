@@ -185,13 +185,29 @@ abstract class TestCase extends PHPUnitTestCase
             )
         ');
 
+        // Szezonok: az archív galéria és az archív ranglista alapja
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS seasons (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                starts_on TEXT DEFAULT NULL,
+                is_current INTEGER NOT NULL DEFAULT 0,
+                is_archived INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\'))
+            )
+        ');
+
         $this->db->exec('
             CREATE TABLE IF NOT EXISTS albums (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
+                season_id TEXT DEFAULT NULL,
+                is_archived INTEGER NOT NULL DEFAULT 0,
                 cover_image_id TEXT,
                 image_count INTEGER DEFAULT 0,
-                created_at TEXT DEFAULT (datetime(\'now\'))
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL
             )
         ');
 
@@ -201,6 +217,7 @@ abstract class TestCase extends PHPUnitTestCase
                 album_id TEXT NOT NULL,
                 filename TEXT NOT NULL,
                 thumbnail_path TEXT NOT NULL,
+                medium_path TEXT DEFAULT NULL,
                 full_path TEXT NOT NULL,
                 alt_text TEXT,
                 uploaded_at TEXT DEFAULT (datetime(\'now\')),
@@ -211,6 +228,7 @@ abstract class TestCase extends PHPUnitTestCase
         $this->db->exec('
             CREATE TABLE IF NOT EXISTS competitions (
                 id TEXT PRIMARY KEY,
+                season_id TEXT DEFAULT NULL,
                 name TEXT NOT NULL,
                 date TEXT NOT NULL,
                 venue TEXT NOT NULL,
@@ -218,7 +236,8 @@ abstract class TestCase extends PHPUnitTestCase
                 registration_deadline TEXT NOT NULL,
                 registrant_count INTEGER DEFAULT 0,
                 created_at TEXT DEFAULT (datetime(\'now\')),
-                updated_at TEXT DEFAULT (datetime(\'now\'))
+                updated_at TEXT DEFAULT (datetime(\'now\')),
+                FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL
             )
         ');
 
@@ -343,8 +362,43 @@ abstract class TestCase extends PHPUnitTestCase
                 email TEXT NOT NULL,
                 phone TEXT NOT NULL,
                 registered_at TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE (competition_id, email),
                 FOREIGN KEY (competition_id) REFERENCES competitions(id) ON DELETE CASCADE,
                 FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+        ');
+
+        // Ranglista pontszámok versenyenként. A ranglista ezekből SZÁMOLT
+        // eredmény, nincs tárolt összeg, ezért nem tud elcsúszni.
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS ranking_entries (
+                id TEXT PRIMARY KEY,
+                competition_id TEXT NOT NULL,
+                user_id TEXT DEFAULT NULL,
+                player_name TEXT NOT NULL,
+                points INTEGER NOT NULL DEFAULT 0,
+                place INTEGER DEFAULT NULL,
+                -- A ranglista ezekből SZÁMOLT eredmény, nincs tárolt összeg
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE (competition_id, player_name),
+                FOREIGN KEY (competition_id) REFERENCES competitions(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+        ');
+
+        // Kiküldött értesítések: az (competition_id, kind) egyediség a
+        // kétszeres kiküldés elleni védelem
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS competition_notifications (
+                id TEXT PRIMARY KEY,
+                competition_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                recipient_count INTEGER NOT NULL DEFAULT 0,
+                failed_count INTEGER NOT NULL DEFAULT 0,
+                sent_at TEXT DEFAULT (datetime(\'now\')),
+                UNIQUE (competition_id, kind),
+                FOREIGN KEY (competition_id) REFERENCES competitions(id) ON DELETE CASCADE
             )
         ');
     }

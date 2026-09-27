@@ -6,8 +6,9 @@
  * másnak vitt fel. A visszavonás csak a nevezési határidő lejártáig
  * lehetséges, utána a névsor véglegesnek tekintendő.
  *
- * @var array $user          A bejelentkezett felhasználó (id, name, email, phone)
- * @var array $registrations Nevezések a verseny adataival együtt
+ * @var array $user           A bejelentkezett felhasználó (id, name, email, phone)
+ * @var array $registrations  Nevezések a verseny adataival együtt
+ * @var array $passwordErrors A jelszóváltás hibái (mező => üzenet)
  */
 $now = new DateTimeImmutable();
 $monthsShort = ['jan', 'feb', 'márc', 'ápr', 'máj', 'jún', 'júl', 'aug', 'szep', 'okt', 'nov', 'dec'];
@@ -171,5 +172,89 @@ $ownEmail = mb_strtolower($user['email']);
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+    </section>
+
+    <!--
+        Jelszó megváltoztatása
+        Natív <details>, tehát JavaScript nélkül is nyitható; hiba esetén
+        nyitva marad. Akkor a legfontosabb, ha a szervező visszaállította a
+        jelszót: a generált, véletlen jelszó itt cserélhető megjegyezhetőre.
+    -->
+    <section class="mt-12" aria-labelledby="password-heading">
+        <h2 id="password-heading" class="text-xl font-semibold tracking-tightest text-billiard-green-900 mb-4">
+            Jelszó
+        </h2>
+
+        <div class="card p-6">
+            <details <?= ($passwordErrors !== [] ? 'open' : '') ?>>
+                <summary class="btn btn-secondary btn-sm w-fit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
+                    </svg>
+                    Jelszó megváltoztatása
+                </summary>
+
+                <form method="POST" action="/fiok/jelszo" class="mt-5 space-y-4 max-w-md" novalidate>
+                    <div>
+                        <label for="current_password" class="label">Jelenlegi jelszó</label>
+                        <input type="password" id="current_password" name="current_password"
+                               required autocomplete="current-password"
+                               class="field<?= isset($passwordErrors['currentPassword']) ? ' field-error' : '' ?>"
+                               <?= isset($passwordErrors['currentPassword'])
+                                    ? 'aria-describedby="current_password-error" aria-invalid="true"'
+                                    : '' ?>>
+                        <?php if (isset($passwordErrors['currentPassword'])): ?>
+                            <p id="current_password-error" class="field-message" role="alert">
+                                <?= e($passwordErrors['currentPassword']) ?>
+                            </p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div>
+                        <label for="new_password" class="label">Új jelszó</label>
+                        <input type="password" id="new_password" name="new_password"
+                               required autocomplete="new-password"
+                               minlength="<?= \App\Services\AuthService::MIN_PASSWORD_LENGTH ?>"
+                               class="field<?= isset($passwordErrors['newPassword']) ? ' field-error' : '' ?>"
+                               <?= isset($passwordErrors['newPassword'])
+                                    ? 'aria-describedby="new_password-error" aria-invalid="true"'
+                                    : 'aria-describedby="new_password-hint"' ?>>
+                        <?php if (isset($passwordErrors['newPassword'])): ?>
+                            <p id="new_password-error" class="field-message" role="alert">
+                                <?= e($passwordErrors['newPassword']) ?>
+                            </p>
+                        <?php else: ?>
+                            <p id="new_password-hint" class="field-hint">
+                                Legalább <?= \App\Services\AuthService::MIN_PASSWORD_LENGTH ?> karakter.
+                            </p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div>
+                        <label for="new_password_confirm" class="label">Új jelszó megerősítése</label>
+                        <input type="password" id="new_password_confirm" name="new_password_confirm"
+                               required autocomplete="new-password"
+                               class="field<?= isset($passwordErrors['newPasswordConfirm']) ? ' field-error' : '' ?>"
+                               <?= isset($passwordErrors['newPasswordConfirm'])
+                                    ? 'aria-describedby="new_password_confirm-error" aria-invalid="true"'
+                                    : '' ?>>
+                        <?php if (isset($passwordErrors['newPasswordConfirm'])): ?>
+                            <p id="new_password_confirm-error" class="field-message" role="alert">
+                                <?= e($passwordErrors['newPasswordConfirm']) ?>
+                            </p>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="pt-1">
+                        <button type="submit" class="btn btn-primary">Jelszó mentése</button>
+                    </div>
+
+                    <p class="field-hint">
+                        A jelszóváltás után a többi eszközödön ki kell lépned és
+                        újra belépned.
+                    </p>
+                </form>
+            </details>
+        </div>
     </section>
 </div>

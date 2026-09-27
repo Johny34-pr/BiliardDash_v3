@@ -19,9 +19,16 @@ $adminNav = [
     ['url' => '/admin/hirek',      'label' => 'Hírek',      'exact' => false],
     ['url' => '/admin/galeria',    'label' => 'Galéria',    'exact' => false],
     ['url' => '/admin/versenyek',  'label' => 'Versenyek',  'exact' => false],
-    ['url' => '/admin/oldalak',    'label' => 'Oldalak',    'exact' => false],
-    ['url' => '/admin/felhasznalok', 'label' => 'Felhasználók', 'exact' => false],
 ];
+
+// A ranglista a Versenyek után: tartalmilag oda tartozik
+if (rankingEnabled()) {
+    $adminNav[] = ['url' => '/admin/ranglista', 'label' => 'Ranglista', 'exact' => false];
+}
+
+$adminNav[] = ['url' => '/admin/szezonok',     'label' => 'Szezonok',     'exact' => false];
+$adminNav[] = ['url' => '/admin/oldalak',      'label' => 'Oldalak',      'exact' => false];
+$adminNav[] = ['url' => '/admin/felhasznalok', 'label' => 'Felhasználók', 'exact' => false];
 
 // A fórum moderálása csak aktív modul esetén jelenik meg
 if (forumEnabled()) {

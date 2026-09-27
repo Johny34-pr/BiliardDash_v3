@@ -29,7 +29,13 @@ $canonicalHref = $canonical ?? canonicalUrl();
 // Megosztási kép: oldalspecifikus, vagy a márkázott alapkép. Mindkét
 // esetben abszolút URL-lé alakítva, mert a közösségi platformok a relatív
 // útvonalat nem tudják feloldani.
-$shareImage = siteUrl($ogImage ?? '/assets/images/og-default.png');
+//
+// Az alapkép verziójelölést kap (publicAsset), mert a logó cseréjekor
+// újragenerálódik, a közösségi platformok viszont cím szerint tárolják a
+// bejárt képet - változatlan cím mellett a régi címerrel osztanák meg az
+// oldalt. Az oldalspecifikus képet érintetlenül hagyjuk: azt a kontroller
+// adja, és lehet külső cím is.
+$shareImage = siteUrl($ogImage ?? publicAsset('/assets/images/og-default.png'));
 
 /*
  * Indexelés tiltása. A belépés mögötti és a felhasználó-specifikus
@@ -111,17 +117,24 @@ if (!$blockIndexing):
 
 <!--
     Weboldal ikonok
-    Mindegyik a klub címerére (public/logo.png) épül, a
+    Mindegyik a klub logójára (public/assets/images/logo.png) épül, a
     `php tools/generate-icons.php` állítja elő őket. Az ICO a régebbi
     böngészők és a Google Search kedvéért van, a 192 pixeles PNG a modern
     böngészőknek, az apple-touch-icon az iOS kezdőképernyőjének.
 
-    A ?v= verziójelölés a böngésző gyorsítótárának felülírására szolgál:
-    az ikonokat a böngészők hosszan és makacsul tárolják.
+    A ?v= verziójelölést a publicAsset() a fájl módosítási idejéből képzi,
+    mert az ikonokat a böngészők hosszan és makacsul tárolják. Korábban itt
+    kézzel írt "?v=2" állt: az a logó cseréje után is változatlan maradt,
+    ezért a böngészőfülön a régi ikon ragadt meg, amíg valaki nem emelte a
+    számot. Az mtime-ot nem lehet elfelejteni emelni.
+
+    FIGYELEM: ezek GENERÁLT fájlok. A logó cseréje után le kell futtatni a
+    `php tools/generate-icons.php` parancsot, különben a címer az oldalon már
+    az új, a böngészőfülön viszont még a régi.
 -->
-<link rel="icon" href="/favicon.ico?v=2" sizes="16x16 32x32 48x48">
-<link rel="icon" href="/icon-192.png?v=2" type="image/png" sizes="192x192">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2">
+<link rel="icon" href="<?= e(publicAsset('/favicon.ico')) ?>" sizes="16x16 32x32 48x48">
+<link rel="icon" href="<?= e(publicAsset('/icon-192.png')) ?>" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="<?= e(publicAsset('/apple-touch-icon.png')) ?>">
 <link rel="manifest" href="/site.webmanifest">
 
 <?php

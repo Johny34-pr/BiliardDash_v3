@@ -20,28 +20,45 @@ function redirect(string $url): void
 }
 
 /**
- * Asset URL generálás (publikus fájlokhoz), gyorsítótör verzióval.
+ * Publikus fájl URL-je a gyökértől, gyorsítótör verzióval.
  *
- * Hívás: asset('css/app.css') → '/assets/css/app.css?v=1712345678'
+ * Hívás: publicAsset('/favicon.ico') → '/favicon.ico?v=1712345678'
  *
  * A verziószám a fájl utolsó módosításának időpontja. Erre azért van
- * szükség, mert a stíluslapokat és a szkripteket hosszú lejárattal
- * gyorsítótárazzuk: enélkül a látogató böngészője egy módosítás után is a
- * régi fájlt használná. A fájl módosításakor a cím megváltozik, ezért a
- * böngésző újra letölti - kézi verziózás nélkül.
+ * szükség, mert ezeket a fájlokat hosszú lejárattal gyorsítótárazzuk:
+ * enélkül a látogató böngészője egy módosítás után is a régi fájlt
+ * használná. A fájl módosításakor a cím megváltozik, ezért a böngésző újra
+ * letölti - kézi verziózás nélkül.
+ *
+ * Kézzel írt verziószám (pl. "?v=2") helyett azért mtime, mert azt frissítés
+ * után emelni KELL, és ha valaki elfelejti, a régi fájl marad a böngészőben.
+ * Az ikonokat ráadásul a böngészők különösen makacsul tárolják.
  *
  * Nem létező fájlnál a verzió elmarad, így a hivatkozás nem törik el.
  */
-function asset(string $path): string
+function publicAsset(string $path): string
 {
-    $path = ltrim($path, '/');
-    $absolute = dirname(__DIR__, 2) . '/public/assets/' . $path;
+    $path = '/' . ltrim($path, '/');
+    $absolute = dirname(__DIR__, 2) . '/public' . $path;
 
     if (is_file($absolute)) {
-        return '/assets/' . $path . '?v=' . filemtime($absolute);
+        return $path . '?v=' . filemtime($absolute);
     }
 
-    return '/assets/' . $path;
+    return $path;
+}
+
+/**
+ * Asset URL generálás az assets könyvtárból, gyorsítótör verzióval.
+ *
+ * Hívás: asset('css/app.css') → '/assets/css/app.css?v=1712345678'
+ *
+ * Rövidítés a publicAsset()-re a leggyakoribb esetre; a verziózás logikája
+ * egy helyen él.
+ */
+function asset(string $path): string
+{
+    return publicAsset('/assets/' . ltrim($path, '/'));
 }
 
 /**
@@ -191,6 +208,51 @@ function siteSettings(): array
 function forumEnabled(): bool
 {
     return (siteSettings()[\App\Services\SettingsService::FORUM_ENABLED] ?? '0') === '1';
+}
+
+/**
+ * Aktív-e a ranglista modul.
+ *
+ * Alapértelmezetten igen: a szervező kérte a felületet. Kikapcsolva a
+ * menüpont eltűnik, és az útvonalai sem léteznek.
+ */
+function rankingEnabled(): bool
+{
+    return (siteSettings()[\App\Services\SettingsService::RANKING_ENABLED] ?? '1') === '1';
+}
+
+/**
+ * A közvetítés menüpont adatai, vagy null ha nincs beállítva.
+ *
+ * Egyetlen mező dönt a megjelenésről: ha nincs megadva cím, a menüpont sem
+ * jelenik meg. Így nem lehet "bekapcsolva, de üres" állapotba jutni, ami
+ * törött hivatkozást adna.
+ *
+ * A séma ellenőrzése a SettingsService-ben történik: csak http és https
+ * címet fogad el, hogy egy "javascript:" séma ne kerülhessen a menübe.
+ *
+ * @return array{url:string, label:string}|null
+ */
+function broadcastLink(): ?array
+{
+    static $link = null;
+    static $resolved = false;
+
+    if ($resolved) {
+        return $link;
+    }
+
+    $resolved = true;
+
+    try {
+        $link = (new \App\Services\SettingsService(\App\Core\Database::getConnection()))
+            ->getBroadcastLink();
+    } catch (\Throwable $e) {
+        error_log('[helpers] A közvetítés hivatkozás betöltése nem sikerült: ' . $e->getMessage());
+        $link = null;
+    }
+
+    return $link;
 }
 
 /**
