@@ -26,7 +26,7 @@ $router->get('/galeria/archiv', 'GalleryController@archive');
 $router->get('/galeria/{albumId}', 'GalleryController@show');
 $router->get('/nevezes', 'CompetitionController@index');
 
-// Tartalmi oldalak. A Rólunk, az Emlékoldal és az adatkezelési tájékoztató
+// Tartalmi oldalak. A Rólunk, az Emlékoldal, a Csapataink és az adatkezelési tájékoztató
 // szövege a szervezői felületen szerkeszthető; a Társhonlapok statikus.
 $router->get('/rolunk', 'PageController@about');
 $router->get('/emlekoldal', 'PageController@memorial');

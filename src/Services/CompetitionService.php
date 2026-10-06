@@ -210,14 +210,14 @@ class CompetitionService
         $this->competitionModel->incrementRegistrantCount($competitionId);
 
         // 5. Email küldés triggerelése
-        $this->emailService->sendRegistrationConfirmation($data['email'], [
+        /*$this->emailService->sendRegistrationConfirmation($data['email'], [
             'competitionName' => $competition['name'],
             'competitionDate' => $competition['date'],
             'competitionVenue' => $competition['venue'],
             'fullName' => $data['fullName'],
             'email' => $data['email'],
             'phone' => $data['phone'],
-        ]);
+        ]);*/
 
         // Visszatérés a rögzített nevezéssel
         return $this->registrationModel->findByCompetitionAndEmail($competitionId, $data['email']);

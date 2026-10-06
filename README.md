@@ -166,14 +166,41 @@ ADMIN_PASSWORD=valasz-egy-eros-jelszot
 
 TINYMCE_API_KEY=
 
-MAIL_HOST=smtp.mailtrap.io
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS=info@okanyibiliard.hu
+MAIL_TRANSPORT=smtp
+MAIL_HOST=mail.sajatdomain.hu
+MAIL_PORT=465
+MAIL_USERNAME=info@sajatdomain.hu
+MAIL_PASSWORD=a-postafiok-jelszava
+MAIL_ENCRYPTION=ssl
+MAIL_FROM_ADDRESS=info@sajatdomain.hu
 MAIL_FROM_NAME="Okányi Biliárd Klub"
 ```
+
+**A levélküldés beállítása.** A `MAIL_TRANSPORT` három értéket vehet fel:
+
+| Érték | Mit tesz | Mikor |
+| --- | --- | --- |
+| `smtp` | külső SMTP kiszolgálóra kapcsolódik | éles üzem |
+| `mail` | a kiszolgáló helyi levelezője a PHP `mail()` függvényén keresztül | ha a szolgáltató így kéri |
+| `log` | nem küld, hanem a `storage/logs/mail.log` fájlba ír | fejlesztés SMTP nélkül |
+
+**cPanel-es postafiók esetén** (a leggyakoribb eset): a kiszolgáló
+`mail.sajatdomain.hu`, a port **465** `ssl` titkosítással vagy **587** `tls`-sel,
+a felhasználónév pedig a **teljes e-mail cím**, nem csak az `@` előtti rész. A
+`MAIL_FROM_ADDRESS` legyen ugyanaz a postafiók, mint a felhasználónév —
+a cPanel alatt futó Exim egyébként idegen feladóként elutasítja a levelet.
+A 25-es port a legtöbb szolgáltatónál kívülről zárt.
+
+A beállítás ellenőrzése — ez megmondja, pontosan mi hiányzik:
+
+```bash
+php tools/mail-check.php                       # csak ellenőrzés, nem küld
+php tools/mail-check.php sajat@cimem.hu        # próbalevél küldése
+php tools/mail-check.php sajat@cimem.hu --debug  # teljes SMTP beszélgetés
+```
+
+Az eszköz a jelszót soha nem írja ki, csak a hosszát, ezért a kimenete
+biztonsággal továbbküldhető hibakereséshez.
 
 A `TINYMCE_API_KEY` a szerkesztő CDN kulcsa, a [tiny.cloud](https://www.tiny.cloud/) oldalon igényelhető. Üresen hagyva a szerkesztő működik, csak figyelmeztetést jelenít meg — ilyenkor az admin felület a szerkesztő alatt jelzi, mit kell beállítani.
 
@@ -439,6 +466,7 @@ Mind CLI szkript, a projekt gyökeréből futtatva. Egyik sem igényel Node-ot.
 | `tools/generate-icons.php` | ikonok és megosztási kép a `logo.png`-ből | nem |
 | `tools/backfill-images.php` | közepes képméret pótlása a régi képekhez | igen |
 | `tools/send-notifications.php` | az esedékes körlevelek kiküldése | igen |
+| `tools/mail-check.php` | a levélküldés beállításának ellenőrzése | alapból nem küld |
 
 A `--check` mód mindenhol ugyanazt jelenti: felméri és kiírja, mi lenne a
 teendő, de **nem ír** — tehát élesben is biztonságosan futtatható. A
@@ -867,19 +895,40 @@ A GD kiterjesztés nincs engedélyezve. Ellenőrizd `php -m | findstr gd` paranc
 
 **A visszaigazoló e-mail vagy a körlevél nem érkezik meg**
 
-Ellenőrizd a `.env` SMTP beállításait: a `MAIL_USERNAME` és a `MAIL_PASSWORD`
-üresen hagyva nincs mivel hitelesíteni a kapcsolatot. A `MAIL_FROM_ADDRESS`
-legyen valódi tartományú cím — a `@localhost` végűt a PHPMailer érvénytelenként
-elutasítja. Fejlesztés közben a Mailtrap vagy hasonló szolgáltatás használata
-ajánlott. A hibák a PHP error logba kerülnek, az `EmailService` legfeljebb 3
-kísérletet tesz.
+Futtasd le ezt — megnevezi a konkrét hiányzó beállítást:
+
+```bash
+php tools/mail-check.php
+```
+
+A leggyakoribb okok, sorrendben:
+
+1. **Nincs megadva `MAIL_PASSWORD`.** Enélkül a kiszolgáló `535 Invalid
+   credentials` választ ad. A `.env`-ben szereplő `smtp.mailtrap.io` csak
+   helykitöltő: saját postafiókhoz a `mail.sajatdomain.hu` kell.
+2. **A felhasználónév nem a teljes e-mail cím.** cPanel alatt
+   `info@sajatdomain.hu` kell, nem `info`.
+3. **A port és a titkosítás nem passzol.** 465-höz `ssl`, 587-hez `tls`.
+   Rossz párosításnál a kapcsolat időtúllépéssel elhasal.
+4. **A feladó cím nem a saját postafiók.** Az Exim idegen feladóként
+   elutasítja. A `@localhost` végű címet a PHPMailer sem fogadja el.
+
+A hibák a PHP error logba is bekerülnek, az `EmailService` pedig a
+hitelesítési és címhibát **nem próbálja újra** — azt az ismétlés nem orvosolja,
+csak késleltetné a körlevelet címzettenként.
+
+Ha SMTP nélkül szeretnéd kipróbálni a folyamatot, állítsd át a
+`MAIL_TRANSPORT=log` értéket: ilyenkor a levelek a `storage/logs/mail.log`
+fájlba kerülnek, és a nevezéstől a körlevélig minden végigjárható.
 
 A `php tools/send-notifications.php --check` megmutatja, mennyi címzett van és
 mi esedékes — küldés nélkül, tehát biztonságosan futtatható.
 
-> Ha egy körlevél hibás SMTP beállítás mellett „ment el", a naplósor akkor is
-> létrejön, és a `UNIQUE (competition_id, kind)` miatt másodszor nem küldhető
-> újra. Ilyenkor a `competition_notifications` megfelelő sorát kell törölni.
+> **Egy sikertelen körlevél újraküldhető.** Ha egyetlen levél sem ment ki, a
+> rendszer felszabadítja a `competition_notifications` foglalást, ezért a
+> beállítás javítása után ugyanaz az értesítés újra elindítható. Részleges
+> sikernél viszont megmarad a naplósor — akik megkapták, azoknak egy második
+> futás kétszer küldené el.
 
 **A galéria borítóképei lágyak**
 

@@ -108,7 +108,7 @@ $canRegister = !$deadlinePassed && !$notYetOpen;
                         </span>
                         <time class="shrink-0 text-xs text-sand-500 tabular-nums"
                               datetime="<?= e($registrant['registered_at']) ?>">
-                            <?= date('m. d. H:i', strtotime($registrant['registered_at'])) ?>
+                            <?= date('m. d. H:i:s', strtotime($registrant['registered_at'])) ?>
                         </time>
                     </li>
                 <?php endforeach; ?>

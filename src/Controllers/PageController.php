@@ -13,7 +13,7 @@ use App\Services\PageService;
  *
  * Kétféle oldal van itt:
  *
- *   1. Adatbázisból szerkeszthető: Rólunk, Emlékoldal, Adatkezelési
+ *   1. Adatbázisból szerkeszthető: Rólunk, Emlékoldal, Csapataink, Adatkezelési
  *      tájékoztató. A szövegüket a szervező a felületen írja át.
  *
  *   2. Statikus: Társhonlapok. A tartalma a config/contact.php-ból és egy
@@ -44,6 +44,14 @@ class PageController
     public function memorial(): void
     {
         $this->renderPage(PageService::SLUG_MEMORIAL);
+    }
+
+    /**
+     * Csapataink - GET /csapataink
+     */
+    public function teams(): void
+    {
+        $this->renderPage(PageService::SLUG_TEAMS);
     }
 
     /**

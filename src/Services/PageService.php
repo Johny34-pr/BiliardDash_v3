@@ -24,6 +24,9 @@ class PageService
     /** Az Emlékoldal azonosítója az útvonalban */
     public const SLUG_MEMORIAL = 'emlekoldal';
 
+    /** A Csapatainl azonosítója az útvonalban */
+    public const SLUG_TEAMS = 'csapataink';
+
     /** Az adatkezelési tájékoztató azonosítója az útvonalban */
     public const SLUG_PRIVACY = 'adatkezeles';
 
