@@ -9,12 +9,30 @@
  * @var array $user           A bejelentkezett felhasználó (id, name, email, phone)
  * @var array $registrations  Nevezések a verseny adataival együtt
  * @var array $passwordErrors A jelszóváltás hibái (mező => üzenet)
+ * @var array $deleteErrors   A fióktörlés hibái (mező => üzenet)
  */
 $now = new DateTimeImmutable();
 $monthsShort = ['jan', 'feb', 'márc', 'ápr', 'máj', 'jún', 'júl', 'aug', 'szep', 'okt', 'nov', 'dec'];
 
 // A saját nevezés az, ahol a nevező e-maile megegyezik a fiók e-mailjével
 $ownEmail = mb_strtolower($user['email']);
+
+/*
+ * A fióktörlés következményeit előre meg kell tudni mondani, mert a művelet
+ * visszafordíthatatlan. A szabály ugyanaz, mint a szolgáltatásban: a még
+ * nyitott versenyek nevezése visszavonódik, a lezárultaké névtelenítve
+ * megmarad.
+ */
+$upcomingCount = 0;
+$pastCount = 0;
+
+foreach ($registrations as $registration) {
+    if (new DateTimeImmutable($registration['registration_deadline']) > $now) {
+        $upcomingCount++;
+    } else {
+        $pastCount++;
+    }
+}
 ?>
 
 <div class="max-w-4xl mx-auto reveal">
@@ -254,6 +272,112 @@ $ownEmail = mb_strtolower($user['email']);
                         újra belépned.
                     </p>
                 </form>
+            </details>
+        </div>
+    </section>
+
+    <!--
+        Fiók törlése
+        Visszafordíthatatlan, ezért (1) össze van csukva, (2) előre
+        felsoroljuk, mi történik, (3) a jelszó megadása kötelező. A
+        data-confirm csak kényelmi réteg: a kiszolgáló a jelszót akkor is
+        megkívánja, ha a JavaScript nem fut.
+    -->
+    <section class="mt-12" aria-labelledby="delete-account-heading">
+        <h2 id="delete-account-heading" class="text-xl font-semibold tracking-tightest text-billiard-green-900 mb-4">
+            Fiók törlése
+        </h2>
+
+        <div class="card p-6 border-red-500">
+            <details <?= ($deleteErrors !== [] ? 'open' : '') ?>>
+                <summary class="btn btn-secondary btn-sm w-fit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+                    </svg>
+                    Szeretném törölni a fiókomat
+                </summary>
+
+                <div class="mt-5 max-w-md">
+                    <p class="text-sm text-sand-700 mb-4">
+                        A törlés <strong>nem vonható vissza</strong>. Ez történik:
+                    </p>
+
+                    <ul class="space-y-2.5 text-sm text-sand-700 mb-5">
+                        <li class="flex gap-2.5">
+                            <span class="text-red-600 mt-0.5" aria-hidden="true">&bull;</span>
+                            <span>
+                                A fiókod megszűnik, és ezzel a belépés is. Új nevezéshez
+                                új fiókot kell létrehoznod.
+                            </span>
+                        </li>
+
+                        <?php if ($upcomingCount > 0): ?>
+                            <li class="flex gap-2.5">
+                                <span class="text-red-600 mt-0.5" aria-hidden="true">&bull;</span>
+                                <span>
+                                    <strong><?= $upcomingCount ?></strong> még nyitott versenyre
+                                    beadott nevezésedet <strong>visszavonjuk</strong> &ndash; nem
+                                    fogsz szerepelni a névsorban.
+                                </span>
+                            </li>
+                        <?php endif; ?>
+
+                        <?php if ($pastCount > 0): ?>
+                            <li class="flex gap-2.5">
+                                <span class="text-sand-400 mt-0.5" aria-hidden="true">&bull;</span>
+                                <span>
+                                    <strong><?= $pastCount ?></strong> lezárult verseny névsorában
+                                    a <strong>neved megmarad</strong>, mert az a klub
+                                    versenytörténetének része. Az e-mail címedet és a
+                                    telefonszámodat viszont eltávolítjuk.
+                                </span>
+                            </li>
+                        <?php endif; ?>
+
+                        <li class="flex gap-2.5">
+                            <span class="text-sand-400 mt-0.5" aria-hidden="true">&bull;</span>
+                            <span>
+                                A ranglistán szerzett pontjaid a nevednél megmaradnak: a
+                                szezon állása nem változik meg visszamenőleg.
+                            </span>
+                        </li>
+                    </ul>
+
+                    <p class="text-sm text-sand-600 mb-5">
+                        Ha csak a leveleket nem szeretnéd, vagy egy adat hibás, keresd
+                        inkább a szervezőt &ndash; a fiókot nem kell megszüntetni hozzá.
+                    </p>
+
+                    <form method="POST" action="/fiok/torles" class="space-y-4" novalidate
+                          data-confirm="Biztosan törlöd a fiókodat? Ez nem vonható vissza.">
+                        <div>
+                            <label for="delete_password" class="label">
+                                A jelszavad a megerősítéshez
+                            </label>
+                            <input type="password" id="delete_password" name="password"
+                                   required autocomplete="current-password"
+                                   class="field<?= isset($deleteErrors['password']) ? ' field-error' : '' ?>"
+                                   <?= isset($deleteErrors['password'])
+                                        ? 'aria-describedby="delete_password-error" aria-invalid="true"'
+                                        : 'aria-describedby="delete_password-hint"' ?>>
+                            <?php if (isset($deleteErrors['password'])): ?>
+                                <p id="delete_password-error" class="field-message" role="alert">
+                                    <?= e($deleteErrors['password']) ?>
+                                </p>
+                            <?php else: ?>
+                                <p id="delete_password-hint" class="field-hint">
+                                    Azért kérjük, hogy más ne tudja törölni a fiókodat.
+                                </p>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="pt-1">
+                            <button type="submit" class="btn btn-danger">
+                                Fiók végleges törlése
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </details>
         </div>
     </section>

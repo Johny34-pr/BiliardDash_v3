@@ -195,6 +195,7 @@ class AuthController
         $user = Session::user();
         $registrations = $this->competitionService->getRegistrationsByUser($user['id']);
         $passwordErrors = Session::getFlash('password_errors') ?: [];
+        $deleteErrors = Session::getFlash('delete_errors') ?: [];
 
         $pageTitle = 'Fiókom - Okányi Biliárd Klub';
 
@@ -257,6 +258,64 @@ class AuthController
         } catch (\Throwable $e) {
             error_log('[AuthController] Jelszóváltási hiba: ' . $e->getMessage());
             Session::flash('error', 'A jelszó módosítása nem sikerült. Kérjük, próbálja újra.');
+        }
+
+        redirect('/fiok');
+    }
+
+    /**
+     * Saját fiók törlése.
+     *
+     * Visszafordíthatatlan, ezért a jelszó megadása kötelező - a nézetben
+     * lévő megerősítő kérdés csak kényelmi réteg, az önmagában kijátszható.
+     */
+    public function deleteAccount(): void
+    {
+        $this->requireUser();
+
+        $userId = Session::userId();
+        $password = $_POST['password'] ?? '';
+
+        if ($password === '') {
+            Session::flash('delete_errors', ['password' => 'A fiók törléséhez add meg a jelszavadat']);
+            redirect('/fiok');
+            return;
+        }
+
+        try {
+            $result = $this->authService->deleteOwnAccount($userId, $password);
+
+            // A tokenek az idegen kulcs miatt amúgy is törlődnek, de a süti
+            // a böngészőben marad: a forget() azt is eltakarítja, különben
+            // minden kérésnél hiába próbálna visszaléptetni
+            $this->rememberMeService->forget();
+            $this->rememberMeService->forgetAllForUser($userId);
+
+            // Csak a látogatói munkamenet szűnik meg. Ha ugyanebben a
+            // böngészőben szervezői mód is aktív, az érintetlen marad - a
+            // kettő szándékosan független.
+            Session::logoutUser();
+
+            $message = 'A fiókodat töröltük.';
+
+            if ($result['withdrawn'] > 0) {
+                $message .= ' A még nyitott versenyekre beadott nevezésed ('
+                    . $result['withdrawn'] . ' db) visszavontuk.';
+            }
+
+            if ($result['anonymized'] > 0) {
+                $message .= ' A lezárult versenyek névsorában a neved megmaradt,'
+                    . ' az elérhetőségeidet eltávolítottuk.';
+            }
+
+            Session::flash('success', $message);
+            redirect('/');
+            return;
+        } catch (AppException $e) {
+            Session::flash('delete_errors', ['password' => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            error_log('[AuthController] Fiók törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A fiók törlése nem sikerült. Kérjük, próbálja újra.');
         }
 
         redirect('/fiok');

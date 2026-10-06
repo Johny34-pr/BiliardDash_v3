@@ -82,6 +82,8 @@ $router->post('/fiok/nevezes/{id}/visszavonas', 'AuthController@deleteRegistrati
 // Saját jelszó megváltoztatása: a szervezői visszaállítás után a tag
 // lecserélheti a generált jelszót megjegyezhetőre
 $router->post('/fiok/jelszo', 'AuthController@changePassword');
+// Saját fiók törlése. A jelszó megadása kötelező, és visszafordíthatatlan.
+$router->post('/fiok/torles', 'AuthController@deleteAccount');
 
 // === Admin útvonalak (session-alapú autentikáció szükséges) ===
 

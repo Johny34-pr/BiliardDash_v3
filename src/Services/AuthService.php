@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\AppException;
+use App\Models\Competition;
+use App\Models\Registration;
 use App\Models\User;
 use PDO;
 use Ramsey\Uuid\Uuid;
@@ -20,11 +22,24 @@ class AuthService
     /** A jelszó minimális hossza karakterben */
     public const MIN_PASSWORD_LENGTH = 8;
 
+    /**
+     * A törölt fiók nevezéseihez írt helyőrző e-mail tartománya.
+     *
+     * Az .invalid az RFC 2606 szerint fenntartott, tehát garantáltan soha
+     * nem létező tartomány. Így a helyőrző címre akkor sem megy ki levél, ha
+     * valahol mégis címzettként kerülne felhasználásra.
+     */
+    private const ANONYMIZED_EMAIL_DOMAIN = 'example.invalid';
+
     private User $userModel;
+    private Registration $registrationModel;
+    private Competition $competitionModel;
 
     public function __construct(private PDO $db)
     {
         $this->userModel = new User($db);
+        $this->registrationModel = new Registration($db);
+        $this->competitionModel = new Competition($db);
     }
 
     /**
@@ -253,6 +268,102 @@ class AuthService
         }
 
         $this->userModel->delete($id);
+    }
+
+    /**
+     * Saját fiók törlése a felhasználó kérésére.
+     *
+     * A jelenlegi jelszót is kérjük, ugyanazért, amiért a jelszóváltásnál:
+     * egy eltulajdonított munkamenettel ne lehessen visszafordíthatatlanul
+     * megszüntetni valaki fiókját.
+     *
+     * Mi történik a nevezésekkel
+     * --------------------------
+     * Ha csak a users sort törölnénk, a nevezéseken MEGMARADNA a név, az
+     * e-mail cím és a telefonszám (az idegen kulcs ON DELETE SET NULL), így
+     * a "fiók törlése" félrevezető lenne: a tag azt hinné, az adatai
+     * eltűntek. Ezért a nevezéseket is kezeljük, de a két eset szándékosan
+     * különbözik:
+     *
+     *   - MÉG NYITOTT verseny (a határidő nem járt le): a nevezés TÖRLŐDIK.
+     *     Aki megszünteti a fiókját, nem fog elindulni, és a szervezői
+     *     névsor legyen pontos. A tag ezt a határidőig egyébként is
+     *     megtehette volna egyenként.
+     *
+     *   - LEZÁRULT verseny: a nevezés MEGMARAD, de az elérhetőség
+     *     névtelenítve. A névsor a klub versenytörténetének része - a
+     *     ranglista is a játékos nevével dolgozik -, az e-mail cím és a
+     *     telefonszám viszont elérhetőség, aminek nincs történeti értéke.
+     *
+     * A ranglista pontszámai, a fórum hozzászólások és a topikok érintetlenek
+     * maradnak; ott az idegen kulcs NULL-ra áll, a megjelenített név pedig
+     * külön oszlopban él, ezért a szezon állása és a beszélgetések nem
+     * csorbulnak.
+     *
+     * Az egész egyetlen tranzakcióban fut: egy félbeszakadt törlés után
+     * maradhatna olyan fiók, amelynek a nevezéseit már névtelenítettük.
+     *
+     * A hívónak a RememberMeService-t is meg kell hívnia, hogy a megjegyzett
+     * belépés sütije eltűnjön az eszközről.
+     *
+     * @return array{withdrawn:int, anonymized:int} Hány nevezést vontunk
+     *         vissza, és hányat tartottunk meg névtelenítve
+     * @throws AppException Ha a fiók nem létezik, vagy a jelszó hibás.
+     */
+    public function deleteOwnAccount(string $id, string $password): array
+    {
+        $user = $this->userModel->findById($id);
+
+        if ($user === null) {
+            throw AppException::notFound('A fiók nem található');
+        }
+
+        // A lenyomat csak az e-mail alapú lekérdezésben jön vissza
+        $withHash = $this->userModel->findByEmail($user['email']);
+
+        if ($withHash === null || !password_verify($password, $withHash['password_hash'])) {
+            throw new AppException('A jelszó nem megfelelő', AppException::VALIDATION_ERROR);
+        }
+
+        $registrations = $this->registrationModel->findByUserId($id);
+        $now = new \DateTimeImmutable();
+
+        $withdrawn = 0;
+        $anonymized = 0;
+
+        $this->db->beginTransaction();
+
+        try {
+            foreach ($registrations as $registration) {
+                $deadlinePassed = new \DateTimeImmutable($registration['registration_deadline']) <= $now;
+
+                if ($deadlinePassed) {
+                    // A nevezés azonosítója adja a helyőrző egyediségét: ez
+                    // elsődleges kulcs, tehát ütközés elvileg sem lehet
+                    $this->registrationModel->anonymize(
+                        $registration['id'],
+                        'torolt-' . $registration['id'] . '@' . self::ANONYMIZED_EMAIL_DOMAIN
+                    );
+                    $anonymized++;
+
+                    continue;
+                }
+
+                $this->registrationModel->delete($registration['id']);
+                $this->competitionModel->decrementRegistrantCount($registration['competition_id']);
+                $withdrawn++;
+            }
+
+            $this->userModel->delete($id);
+
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+
+            throw $e;
+        }
+
+        return ['withdrawn' => $withdrawn, 'anonymized' => $anonymized];
     }
 
     /**

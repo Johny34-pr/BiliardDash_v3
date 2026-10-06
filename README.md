@@ -126,6 +126,7 @@ nyilvántartásba a korábbi migrációkat, hogy ne próbálja újra alkalmazni 
 | `009` | Település a fiókokban és a „belépés megjegyzése" tokenek |
 | `010` | Szezonok, ranglista pontszámok, körlevél-napló, album-archiválás, közepes képméret |
 | `011` | Az adatkezelési tájékoztató kép- és videófelvételekről szóló szakasza |
+| `012` | Az adatkezelési tájékoztató önkiszolgáló fióktörlésről szóló szakasza |
 
 XAMPP alatt Windows-on a PHP a `C:\xampp\php\php.exe`, a MySQL kliens a
 `C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a
@@ -333,6 +334,7 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET | `/fiok` | `AuthController@account` |
 | POST | `/fiok/nevezes/{id}/visszavonas` | `AuthController@deleteRegistration` |
 | POST | `/fiok/jelszo` | `AuthController@changePassword` |
+| POST | `/fiok/torles` | `AuthController@deleteAccount` |
 
 **Admin** (bejelentkezés szükséges, egyébként átirányít a `/admin/login` oldalra)
 
@@ -547,7 +549,36 @@ adnia, hogy egy eltulajdonított munkamenettel ne lehessen kizárni a tulajdonos
 Mindkét művelet érvényteleníti a „belépés megjegyzése" tokeneket, így a régi
 süti nem léptet be.
 
-**Publikus útvonalak:** `/regisztracio`, `/belepes`, `/kilepes`, `/fiok`, valamint `POST /fiok/nevezes/{id}/visszavonas` és `POST /fiok/jelszo`.
+**Fiók törlése.** A tag a `/fiok` oldalon maga is megszüntetheti a fiókját. A
+jelszó megadása kötelező, ugyanazért, amiért a jelszóváltásnál: egy
+eltulajdonított munkamenettel ne lehessen visszafordíthatatlanul törölni
+valaki fiókját. A felület előre kiírja, hány nevezést érint a művelet.
+
+A nehéz kérdés nem a `users` sor törlése, hanem az, hogy **a személyes adat a
+nevezéseken is ott van**. Ha csak a fiókot törölnénk, a név, az e-mail cím és
+a telefonszám megmaradna (az idegen kulcs `ON DELETE SET NULL`), és a „fiók
+törlése" félrevezető lenne. A két eset ezért szándékosan különbözik:
+
+| Hol | Mi történik | Miért |
+| --- | --- | --- |
+| Még nyitott verseny nevezése | **törlődik**, a nevezőszám csökken | aki megszünteti a fiókját, nem fog elindulni; a névsor legyen pontos |
+| Lezárult verseny nevezése | a sor marad, a **név** is, de az e-mail és a telefon **törlődik** | a névsor a versenytörténet része, az elérhetőségnek nincs történeti értéke |
+| Ranglista pontszám | marad, `user_id` NULL-ra áll | sporteredmény; a szezon állása nem csorbulhat visszamenőleg |
+| Fórum topik és hozzászólás | marad, `user_id` NULL-ra áll | a beszélgetés olvasható marad |
+| „Belépés megjegyzése" tokenek | törlődnek (kaszkád + süti törlés) | nincs mit megjegyezni |
+
+A névtelenítés nem üres e-mail címet ír be: a `UNIQUE (competition_id, email)`
+megkötés miatt két törölt fiók ugyanazon a versenyen ütközne. Helyette
+soronként egyedi, `@example.invalid` végű helyőrzőt kap — az `.invalid` az
+RFC 2606 szerint fenntartott, tehát garantáltan nem létező tartomány, így a
+helyőrzőre akkor sem megy ki levél, ha valahol címzettként kerülne elő.
+
+Az egész egyetlen tranzakcióban fut: félbeszakadva maradhatna olyan fiók,
+amelynek a nevezéseit már névtelenítettük. A törlés csak a látogatói
+munkamenetet zárja le; ha ugyanabban a böngészőben szervezői mód is aktív, az
+érintetlen marad.
+
+**Publikus útvonalak:** `/regisztracio`, `/belepes`, `/kilepes`, `/fiok`, valamint `POST /fiok/nevezes/{id}/visszavonas`, `POST /fiok/jelszo` és `POST /fiok/torles`.
 
 Az admin nevezői listája jelvénnyel mutatja, hogy egy nevezés vendégként vagy fiókkal érkezett.
 

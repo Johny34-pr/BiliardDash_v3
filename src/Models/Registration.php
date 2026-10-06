@@ -182,6 +182,34 @@ class Registration
     }
 
     /**
+     * Elérhetőségi adatok eltávolítása a nevezésről, a név megtartásával.
+     *
+     * A fiók törlésekor a LEZÁRULT versenyek nevezéseinél használjuk. A
+     * névsor a klub versenytörténetének része, és a ranglista is a játékos
+     * nevével dolgozik, ezért a nevet megtartjuk; az e-mail cím és a
+     * telefonszám viszont elérhetőség, aminek nincs történeti értéke.
+     *
+     * Miért nem üres az e-mail: a (competition_id, email) EGYEDI kulcs miatt
+     * két törölt fiók ugyanazon a versenyen ütközne, és a második
+     * névtelenítés elhasalna. Ezért soronként egyedi helyőrzőt kap.
+     *
+     * @param string $placeholderEmail Soronként egyedi, nem létező cím
+     */
+    public function anonymize(string $id, string $placeholderEmail): bool
+    {
+        $stmt = $this->db->prepare(
+            "UPDATE registrations
+             SET email = :email, phone = ''
+             WHERE id = :id"
+        );
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':email' => $placeholderEmail,
+        ]);
+    }
+
+    /**
      * Egy verseny nevezéseinek száma.
      */
     public function countByCompetition(string $competitionId): int
