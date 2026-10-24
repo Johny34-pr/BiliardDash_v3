@@ -156,15 +156,19 @@ class Competition
         string $date,
         string $venue,
         string $registrationDeadline,
-        ?string $registrationOpensAt = null
+        ?string $registrationOpensAt = null,
+        ?string $seasonId = null
     ): bool {
         $stmt = $this->db->prepare(
-            'INSERT INTO competitions (id, name, date, venue, registration_opens_at, registration_deadline)
-             VALUES (:id, :name, :date, :venue, :registration_opens_at, :registration_deadline)'
+            'INSERT INTO competitions
+                (id, season_id, name, date, venue, registration_opens_at, registration_deadline)
+             VALUES
+                (:id, :season_id, :name, :date, :venue, :registration_opens_at, :registration_deadline)'
         );
 
         return $stmt->execute([
             ':id' => $id,
+            ':season_id' => $seasonId,
             ':name' => $name,
             ':date' => $date,
             ':venue' => $venue,
@@ -185,11 +189,13 @@ class Competition
         string $date,
         string $venue,
         string $registrationDeadline,
-        ?string $registrationOpensAt = null
+        ?string $registrationOpensAt = null,
+        ?string $seasonId = null
     ): bool {
         $stmt = $this->db->prepare(
             'UPDATE competitions
-             SET name = :name, date = :date, venue = :venue,
+             SET season_id = :season_id,
+                 name = :name, date = :date, venue = :venue,
                  registration_opens_at = :registration_opens_at,
                  registration_deadline = :registration_deadline
              WHERE id = :id'
@@ -197,6 +203,7 @@ class Competition
 
         return $stmt->execute([
             ':id' => $id,
+            ':season_id' => $seasonId,
             ':name' => $name,
             ':date' => $date,
             ':venue' => $venue,

@@ -55,6 +55,9 @@ composer.phar
 # mentések viszont éles adatot tartalmazhatnak, ezért kimaradnak.
 /*_backup_*.sql
 /*.dump.sql
+# A storage/backup/ a mysqldump kimenetének helye: valódi e-mail címeket és
+# jelszó-lenyomatokat tartalmaz, ezért SOHA nem kerülhet verziókövetésbe.
+/storage/backup/
 
 # ==========================================================================
 # Operációs rendszer által generált fájlok

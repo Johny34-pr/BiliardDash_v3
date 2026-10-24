@@ -8,10 +8,13 @@
  * @var string    $formAction         Az űrlap action attribútuma
  * @var string    $submitLabel        A beküldő gomb felirata
  * @var array     $errors             Validációs hibák
- * @var array     $data               Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline)
+ * @var array     $data               Űrlap adatok (name, date, venue, registrationOpensAt, registrationDeadline, seasonId)
+ * @var array     $seasonOptions      Szezonok: azonosító => megjelenő név
  * @var bool|null $showNotifyOption   Megjelenjen-e az "értesítés kiküldése" mező
  * @var int|null  $recipientCount     Hány tag kapná meg az értesítést
  */
+$seasonOptions = $seasonOptions ?? [];
+$selectedSeason = (string) ($data['seasonId'] ?? '');
 ?>
 <form method="POST" action="<?= e($formAction) ?>" class="card p-6 md:p-8 space-y-6" novalidate data-validate>
 
@@ -43,6 +46,54 @@
                <?= isset($errors['date']) ? 'aria-describedby="date-error" aria-invalid="true"' : '' ?>>
         <?php if (isset($errors['date'])): ?>
             <p id="date-error" class="field-message" role="alert"><?= e($errors['date']) ?></p>
+        <?php endif; ?>
+    </div>
+
+    <!--
+        Szezon
+        Ez dönti el, melyik ranglistába számítanak be a verseny pontjai: a
+        RankingEntry::findBySeason() a verseny season_id-je alapján szűr.
+        Szezon nélkül a felvitt pontszámok egyetlen ranglistán sem jelennek
+        meg - ezért van kiírva a mező alatt.
+
+        Az archivált szezonok is választhatók: a korábbi évek versenyeit
+        utólag kell a megfelelő, már lezárt szezonhoz rendelni, különben a
+        régi ranglisták üresen maradnának.
+    -->
+    <div class="sm:max-w-sm">
+        <label for="seasonId" class="label">Szezon</label>
+
+        <?php if ($seasonOptions === []): ?>
+            <p class="field-hint">
+                Még nincs szezon.
+                <a href="/admin/szezonok" class="font-medium text-billiard-green-700 underline">
+                    Hozz létre egyet
+                </a>, hogy a verseny pontjai bekerülhessenek a ranglistába.
+            </p>
+        <?php else: ?>
+            <select id="seasonId" name="seasonId"
+                    class="field<?= isset($errors['seasonId']) ? ' field-error' : '' ?>"
+                    <?= isset($errors['seasonId'])
+                         ? 'aria-describedby="season-error" aria-invalid="true"'
+                         : 'aria-describedby="season-hint"' ?>>
+                <option value="">Nincs szezon (nem számít a ranglistába)</option>
+                <?php foreach ($seasonOptions as $seasonId => $seasonLabel): ?>
+                    <option value="<?= e((string) $seasonId) ?>"
+                            <?= $selectedSeason === (string) $seasonId ? 'selected' : '' ?>>
+                        <?= e($seasonLabel) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <?php if (isset($errors['seasonId'])): ?>
+                <p id="season-error" class="field-message" role="alert"><?= e($errors['seasonId']) ?></p>
+            <?php else: ?>
+                <p id="season-hint" class="field-hint">
+                    A verseny pontszámai ennek a szezonnak a ranglistájába
+                    számítanak be. Szezon nélkül a pontok nem jelennek meg
+                    egyetlen ranglistán sem.
+                </p>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 

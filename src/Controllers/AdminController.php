@@ -1573,13 +1573,21 @@ class AdminController
         $this->requireAdmin();
 
         $errors = [];
+
+        // Az aktuális szezon az alapértelmezés: a versenyek túlnyomó része a
+        // futó évadhoz tartozik, és szezon nélkül a pontjai nem jelennének
+        // meg egyetlen ranglistán sem
+        $currentSeason = $this->seasonService->getCurrent();
+
         $data = [
             'name' => '',
             'date' => '',
             'venue' => '',
             'registrationOpensAt' => '',
             'registrationDeadline' => '',
+            'seasonId' => $currentSeason['id'] ?? '',
         ];
+        $seasonOptions = $this->seasonService->getOptions();
         // Az értesítés jelölőmező csak a létrehozó űrlapon jelenik meg
         $showNotifyOption = true;
         $recipientCount = $this->notificationService->countRecipients();
@@ -1606,12 +1614,15 @@ class AdminController
             // Üresen hagyható: ilyenkor a nevezés azonnal nyitott
             'registrationOpensAt' => trim($_POST['registrationOpensAt'] ?? ''),
             'registrationDeadline' => trim($_POST['registrationDeadline'] ?? ''),
+            // Üresen hagyható: a verseny lehet szezon nélküli
+            'seasonId' => trim($_POST['seasonId'] ?? ''),
         ];
 
         $validator = $this->validationService->validateCompetition($data);
 
         if (!$validator->isValid()) {
             $errors = $validator->getErrors();
+            $seasonOptions = $this->seasonService->getOptions();
             $showNotifyOption = true;
             $recipientCount = $this->notificationService->countRecipients();
             $pageTitle = 'Új verseny - Admin';
@@ -1624,7 +1635,24 @@ class AdminController
             return;
         }
 
-        $competition = $this->competitionService->createCompetition($data);
+        try {
+            $competition = $this->competitionService->createCompetition($data);
+        } catch (AppException $e) {
+            // Nem létező szezon: a választó értékét csak kézi beküldéssel
+            // lehet elrontani, de akkor is beszédes hibát kell adni
+            $errors = ['seasonId' => $e->getMessage()];
+            $seasonOptions = $this->seasonService->getOptions();
+            $showNotifyOption = true;
+            $recipientCount = $this->notificationService->countRecipients();
+            $pageTitle = 'Új verseny - Admin';
+
+            ob_start();
+            require __DIR__ . '/../Views/admin/competitions/create.php';
+            $content = ob_get_clean();
+
+            require __DIR__ . '/../Views/layouts/admin.php';
+            return;
+        }
 
         // Értesítés a tagoknak a versenykiírásról. A jelölőmező alapból be van
         // jelölve, de a szervező kiveheti - például ha csak elmenti a
@@ -1742,7 +1770,9 @@ class AdminController
                 ? date('Y-m-d\TH:i', strtotime($competition['registration_opens_at']))
                 : '',
             'registrationDeadline' => date('Y-m-d\TH:i', strtotime($competition['registration_deadline'])),
+            'seasonId' => (string) ($competition['season_id'] ?? ''),
         ];
+        $seasonOptions = $this->seasonService->getOptions();
         $pageTitle = 'Verseny szerkesztése - Admin';
 
         ob_start();
@@ -1774,12 +1804,15 @@ class AdminController
             // Üresen hagyható: ilyenkor a nevezés azonnal nyitott
             'registrationOpensAt' => trim($_POST['registrationOpensAt'] ?? ''),
             'registrationDeadline' => trim($_POST['registrationDeadline'] ?? ''),
+            // Üresen hagyható: a verseny lehet szezon nélküli
+            'seasonId' => trim($_POST['seasonId'] ?? ''),
         ];
 
         $validator = $this->validationService->validateCompetition($data);
 
         if (!$validator->isValid()) {
             $errors = $validator->getErrors();
+            $seasonOptions = $this->seasonService->getOptions();
             $pageTitle = 'Verseny szerkesztése - Admin';
 
             ob_start();
@@ -1790,7 +1823,21 @@ class AdminController
             return;
         }
 
-        $this->competitionService->updateCompetition($id, $data);
+        try {
+            $this->competitionService->updateCompetition($id, $data);
+        } catch (AppException $e) {
+            $errors = ['seasonId' => $e->getMessage()];
+            $seasonOptions = $this->seasonService->getOptions();
+            $pageTitle = 'Verseny szerkesztése - Admin';
+
+            ob_start();
+            require __DIR__ . '/../Views/admin/competitions/edit.php';
+            $content = ob_get_clean();
+
+            require __DIR__ . '/../Views/layouts/admin.php';
+            return;
+        }
+
         Session::flash('success', 'Verseny sikeresen frissítve!');
         redirect('/admin/versenyek');
     }

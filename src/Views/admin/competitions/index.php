@@ -74,6 +74,23 @@ $now = new DateTimeImmutable();
                         <tr>
                             <td>
                                 <span class="font-medium text-sand-900"><?= e($competition['name']) ?></span>
+                                <!--
+                                    A szezon itt is látszik, mert ez dönti el,
+                                    bekerülnek-e a pontok a ranglistába. A
+                                    hiánya figyelmeztetés: a felvitt pontszámok
+                                    szezon nélkül egyetlen ranglistán sem
+                                    jelennek meg.
+                                -->
+                                <?php if (!empty($competition['season_name'])): ?>
+                                    <span class="block text-xs text-sand-500 mt-0.5">
+                                        <?= e($competition['season_name']) ?>
+                                    </span>
+                                <?php else: ?>
+                                    <a href="/admin/versenyek/<?= e($competition['id']) ?>/szerkeszt"
+                                       class="block text-xs font-medium text-billiard-gold-700 mt-0.5 hover:underline">
+                                        Nincs szezon &ndash; beállítás
+                                    </a>
+                                <?php endif; ?>
                             </td>
                             <td class="whitespace-nowrap">
                                 <time datetime="<?= e($competition['date']) ?>">

@@ -237,8 +237,17 @@ class CompetitionService
         $venue = $data['venue'];
         $registrationDeadline = $data['registrationDeadline'];
         $registrationOpensAt = $this->normalizeOpensAt($data['registrationOpensAt'] ?? null);
+        $seasonId = $this->resolveSeasonId($data['seasonId'] ?? null);
 
-        $this->competitionModel->create($id, $name, $date, $venue, $registrationDeadline, $registrationOpensAt);
+        $this->competitionModel->create(
+            $id,
+            $name,
+            $date,
+            $venue,
+            $registrationDeadline,
+            $registrationOpensAt,
+            $seasonId
+        );
 
         return $this->competitionModel->findById($id);
     }
@@ -255,10 +264,52 @@ class CompetitionService
         $venue = $data['venue'];
         $registrationDeadline = $data['registrationDeadline'];
         $registrationOpensAt = $this->normalizeOpensAt($data['registrationOpensAt'] ?? null);
+        $seasonId = $this->resolveSeasonId($data['seasonId'] ?? null);
 
-        $this->competitionModel->update($id, $name, $date, $venue, $registrationDeadline, $registrationOpensAt);
+        $this->competitionModel->update(
+            $id,
+            $name,
+            $date,
+            $venue,
+            $registrationDeadline,
+            $registrationOpensAt,
+            $seasonId
+        );
 
         return $this->competitionModel->findById($id);
+    }
+
+    /**
+     * A beküldött szezonazonosító ellenőrzése.
+     *
+     * Az üres érték érvényes: a verseny lehet szezon nélküli (például egy
+     * baráti torna, ami nem számít a pontversenybe). Nem létező azonosítóra
+     * viszont hibát dobunk, nem csendben null-ozzuk: a választó értékét csak
+     * kézi beküldéssel lehet elrontani, és ilyenkor a szervezőnek tudnia kell
+     * róla - különben azt hinné, beállította a szezont.
+     *
+     * ARCHIVÁLT szezon SZÁNDÉKOSAN választható: a korábbi évek versenyeit
+     * utólag kell a megfelelő, már lezárt szezonhoz rendelni, különben a
+     * régi ranglisták üresen maradnának.
+     *
+     * @throws AppException Ha a megadott szezon nem létezik.
+     */
+    private function resolveSeasonId(?string $seasonId): ?string
+    {
+        $seasonId = trim((string) $seasonId);
+
+        if ($seasonId === '') {
+            return null;
+        }
+
+        $stmt = $this->db->prepare('SELECT 1 FROM seasons WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $seasonId]);
+
+        if ($stmt->fetch() === false) {
+            throw AppException::validationError('A kiválasztott szezon nem található');
+        }
+
+        return $seasonId;
     }
 
     /**
