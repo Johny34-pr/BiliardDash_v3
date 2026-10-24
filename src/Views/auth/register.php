@@ -34,19 +34,47 @@ $minPassword = AuthService::MIN_PASSWORD_LENGTH;
 
     <form method="POST" action="/regisztracio" class="card p-6 md:p-8 space-y-5" novalidate>
 
+        <!--
+            Családnév és utónév KÜLÖN mezőben, nem egy "Teljes név" mezőben.
+            Egyetlen mezőn az autocomplete="name" token a böngésző profiljából
+            "utónév családnév" sorrendben töltött, ami magyar névsorrendnél
+            fordított - innen jöttek a felcserélt nevek. Külön mezőkkel a
+            family-name/given-name token pontosan a helyére kerül, a sorrendet
+            pedig a szerver állítja össze, nem a böngésző.
+        -->
         <div>
-            <label for="name" class="label">
-                Teljes név <span class="text-billiard-gold-600" aria-hidden="true">*</span>
-            </label>
-            <input type="text" id="name" name="name" maxlength="100"
-                   value="<?= e($data['name'] ?? '') ?>"
-                   required autocomplete="name" autofocus
-                   placeholder="pl. Kovács Péter"
-                   class="field<?= isset($errors['name']) ? ' field-error' : '' ?>"
-                   <?= isset($errors['name']) ? 'aria-describedby="name-error" aria-invalid="true"' : '' ?>>
-            <?php if (isset($errors['name'])): ?>
-                <p id="name-error" class="field-message" role="alert"><?= e($errors['name']) ?></p>
-            <?php endif; ?>
+            <div class="grid gap-5 sm:grid-cols-2">
+                <div>
+                    <label for="last_name" class="label">
+                        Családnév <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+                    </label>
+                    <input type="text" id="last_name" name="last_name" maxlength="50"
+                           value="<?= e($data['lastName'] ?? '') ?>"
+                           required autocomplete="family-name" autofocus
+                           placeholder="pl. Kovács"
+                           class="field<?= isset($errors['lastName']) ? ' field-error' : '' ?>"
+                           <?= isset($errors['lastName']) ? 'aria-describedby="last-name-error" aria-invalid="true"' : '' ?>>
+                    <?php if (isset($errors['lastName'])): ?>
+                        <p id="last-name-error" class="field-message" role="alert"><?= e($errors['lastName']) ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div>
+                    <label for="first_name" class="label">
+                        Utónév <span class="text-billiard-gold-600" aria-hidden="true">*</span>
+                    </label>
+                    <input type="text" id="first_name" name="first_name" maxlength="50"
+                           value="<?= e($data['firstName'] ?? '') ?>"
+                           required autocomplete="given-name"
+                           placeholder="pl. Péter"
+                           class="field<?= isset($errors['firstName']) ? ' field-error' : '' ?>"
+                           <?= isset($errors['firstName']) ? 'aria-describedby="first-name-error" aria-invalid="true"' : '' ?>>
+                    <?php if (isset($errors['firstName'])): ?>
+                        <p id="first-name-error" class="field-message" role="alert"><?= e($errors['firstName']) ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <p class="field-hint mt-2">A neved magyar sorrendben jelenik meg: családnév, majd utónév.</p>
         </div>
 
         <div>

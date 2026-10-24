@@ -122,14 +122,20 @@ class ValidationService
      *
      * A jelszó minimális hosszát az AuthService::MIN_PASSWORD_LENGTH adja meg,
      * és a megerősítő mezővel is egyeznie kell.
+     *
+     * A nevet családnév (lastName) és utónév (firstName) bontásban kapjuk,
+     * mert az űrlapon is két mező van. Az összevont 'name' értéket a hívó
+     * állítja elő, itt csak a users.name hosszkorlátjához mérjük.
      */
     public function validateUserRegistration(array $data): Validator
     {
         $v = new Validator();
         $minLength = AuthService::MIN_PASSWORD_LENGTH;
 
-        $v->required('name', $data['name'] ?? null, 'A név megadása kötelező')
-          ->maxLength('name', $data['name'] ?? null, 100, 'A név maximum 100 karakter lehet')
+        $v->required('lastName', $data['lastName'] ?? null, 'A családnév megadása kötelező')
+          ->maxLength('lastName', $data['lastName'] ?? null, 50, 'A családnév maximum 50 karakter lehet')
+          ->required('firstName', $data['firstName'] ?? null, 'Az utónév megadása kötelező')
+          ->maxLength('firstName', $data['firstName'] ?? null, 50, 'Az utónév maximum 50 karakter lehet')
           ->required('email', $data['email'] ?? null, 'Az e-mail cím megadása kötelező')
           ->email('email', $data['email'] ?? null, 'Érvénytelen e-mail formátum')
           ->maxLength('email', $data['email'] ?? null, 255, 'Az e-mail cím maximum 255 karakter lehet')
@@ -139,6 +145,13 @@ class ValidationService
           ->maxLength('city', $data['city'] ?? null, 100, 'A település maximum 100 karakter lehet')
           ->required('password', $data['password'] ?? null, 'A jelszó megadása kötelező')
           ->minLength('password', $data['password'] ?? null, $minLength, "A jelszó legalább {$minLength} karakter legyen");
+
+        // A két névrész egy mezőbe (users.name, VARCHAR(100)) kerül, ezért a
+        // köztük lévő szóközzel együtt sem lehet hosszabb 100 karakternél.
+        // Külön-külön 50 még belefér, de 50 + 1 + 50 már nem.
+        if (mb_strlen((string) ($data['name'] ?? '')) > 100) {
+            $v->addError('lastName', 'A családnév és az utónév együtt maximum 100 karakter lehet');
+        }
 
         // Jelszó megerősítés egyezése - csak ha van megadott jelszó
         if (!empty($data['password']) && ($data['passwordConfirm'] ?? '') !== $data['password']) {

@@ -198,7 +198,7 @@ $dateBadgeClass = 'flex sm:flex-col items-center justify-center gap-2 sm:gap-0 s
             <div class="shrink-0 flex flex-col gap-2">
                 <?php if ($isPast): ?>
                     <a href="<?= e($registrantUrl) ?>" class="btn btn-secondary w-full md:w-auto">
-                        Végeredmény és nevezők
+                        Nevezők
                     </a>
                 <?php elseif ($canRegister): ?>
                     <a href="/nevezes/<?= e($competition['id']) ?>" class="btn btn-primary w-full md:w-auto">

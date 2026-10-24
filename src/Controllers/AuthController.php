@@ -58,8 +58,16 @@ class AuthController
             redirect('/fiok');
         }
 
+        $lastName = trim($_POST['last_name'] ?? '');
+        $firstName = trim($_POST['first_name'] ?? '');
+
         $data = [
-            'name' => trim($_POST['name'] ?? ''),
+            // A két mezőt a szerver vonja össze, mindig magyar sorrendben
+            // (családnév + utónév). Az űrlap a lastName/firstName kulcsokat
+            // jeleníti meg újra hibánál, a 'name' csak a mentéshez kell.
+            'lastName' => $lastName,
+            'firstName' => $firstName,
+            'name' => trim($lastName . ' ' . $firstName),
             'email' => trim($_POST['email'] ?? ''),
             'phone' => trim($_POST['phone'] ?? ''),
             'city' => trim($_POST['city'] ?? ''),
