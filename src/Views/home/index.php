@@ -22,6 +22,43 @@ if (!$error && !empty($news)) {
 }
 ?>
 
+<!-- ===================== Fejlesztési tájékoztató ===================== -->
+<!--
+    Szándékosan nem elrejthető: állandó tájékoztatás, nem egyszeri értesítés.
+    A cím nem h1/h2, hanem kiemelt bekezdés, mert a banner a hero fölött áll,
+    és egy itteni h2 a főoldal h1 címe ELŐTT bontaná meg a címhierarchiát.
+    A landmark nevét ezért az aria-label adja.
+-->
+<!--
+    A keret szándékosan segédosztályokból áll, nem a .card komponensből:
+    az app.css a tailwind.css UTÁN töltődik be, és a .card ugyanilyen
+    specificitással írja elő a fehér hátteret és a sand szegélyt, ezért egy
+    .card-ra aggatott bg-/border- utility nem érvényesülne. A rounded-2xl
+    ugyanaz az 1rem lekerekítés, amit a .card is használ.
+-->
+<aside class="rounded-2xl border border-billiard-gold-200 bg-billiard-gold-50 p-5 md:p-6 mb-8 reveal"
+       aria-label="Tájékoztató az oldal fejlesztéséről">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <span class="grid place-items-center w-10 h-10 shrink-0 rounded-full bg-billiard-gold-400 text-billiard-green-900"
+              aria-hidden="true">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437L5.909 7.5"/>
+            </svg>
+        </span>
+
+        <div class="flex-1 min-w-0">
+            <p class="font-semibold text-billiard-green-900">
+                Az oldal folyamatos fejlesztés alatt áll
+            </p>
+            <p class="text-sm text-sand-700 leading-relaxed mt-1">
+                Új funkciók és tartalmak folyamatosan kerülnek fel, ezért egyes
+                részek még változhatnak. Kövesd az oldalt, hogy ne maradj le a
+                hírekről, a versenykiírásokról és az eredményekről.
+            </p>
+        </div>
+    </div>
+</aside>
+
 <!-- ===================== Hero ===================== -->
 <section class="relative overflow-hidden rounded-4xl bg-billiard-green-900 text-white mb-12 md:mb-16 reveal">
     <!-- Dekoratív háttér: lágy zöld/arany fények -->
