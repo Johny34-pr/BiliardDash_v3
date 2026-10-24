@@ -96,5 +96,13 @@ $pageTitle = $pageTitle ?? 'Admin belépés - Okányi Biliárd Klub';
             </p>
         </div>
     </main>
+
+    <!--
+        Ez az oldal önálló HTML dokumentum, nem a layoutokon keresztül
+        készül, ezért a szkriptet külön kell bekötni. Nélküle a jelszó mező
+        láthatóvá tétele pont azon az egy oldalon nem működne, ahol a
+        szervező a leggyakrabban jelszót ír be.
+    -->
+    <script src="<?= e(asset('js/app.js')) ?>" defer></script>
 </body>
 </html>

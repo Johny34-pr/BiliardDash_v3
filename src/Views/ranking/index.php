@@ -14,7 +14,8 @@
  * @var array|null $season        Az aktuális vagy kiválasztott szezon
  * @var string|null $seasonName   A szezon neve, vagy null
  * @var array      $competitions  Oszlopok: [['id','name','date'], ...]
- * @var array      $rows          Sorok: játékosonként pontok, összeg, helyezés
+ * @var array      $rows          Sorok: játékosonként helyezések, pontok,
+ *                                átlagos helyezés, összeg, szezonbeli hely
  * @var bool       $isArchived    Archivált szezont látunk-e
  * @var int        $archivedCount Hány archivált szezon van
  */
@@ -123,6 +124,16 @@ $medalClass = static function (int $position): string {
                                 <span class="sr-only"><?= e($competition['name']) ?></span>
                             </th>
                         <?php endforeach; ?>
+                        <!--
+                            A rendezés kulcsa. Azért látszik, mert a sorrend
+                            ellentmondhat az összpontszámnak: enélkül a
+                            látogató hibásnak hinné a táblázatot.
+                        -->
+                        <th scope="col" class="text-center">
+                            <span class="block whitespace-nowrap" title="Átlagos helyezés - ez adja a sorrendet">
+                                Átl. hely.
+                            </span>
+                        </th>
                         <th scope="col" class="text-center">Összesen</th>
                     </tr>
                 </thead>
@@ -138,18 +149,40 @@ $medalClass = static function (int $position): string {
                                 <?= e($row['player_name']) ?>
                             </th>
                             <?php foreach ($competitions as $competition): ?>
-                                <?php $points = $row['points'][$competition['id']] ?? null; ?>
+                                <?php
+                                $points = $row['points'][$competition['id']] ?? null;
+                                $place = $row['places'][$competition['id']] ?? null;
+                                ?>
                                 <td class="text-center tabular-nums">
-                                    <?php if ($points !== null): ?>
-                                        <?= (int) $points ?>
-                                    <?php else: ?>
+                                    <?php if ($points === null): ?>
                                         <!-- Nem indult ezen a versenyen -->
                                         <span class="text-sand-300" aria-label="nem indult">&ndash;</span>
+                                    <?php else: ?>
+                                        <!--
+                                            A HELYEZÉS a kiemelt érték, mert a
+                                            sorrendet az adja; a pontszám
+                                            másodlagos információ.
+                                        -->
+                                        <?php if ($place !== null): ?>
+                                            <span class="block font-semibold text-sand-900"><?= (int) $place ?>.</span>
+                                        <?php else: ?>
+                                            <span class="block text-sand-400" title="nincs megadva helyezés">&ndash;</span>
+                                        <?php endif; ?>
+                                        <span class="block text-xs text-sand-500"><?= (int) $points ?> pont</span>
                                     <?php endif; ?>
                                 </td>
                             <?php endforeach; ?>
+                            <td class="text-center tabular-nums">
+                                <?php if ($row['place_average'] !== null): ?>
+                                    <span class="font-semibold text-billiard-green-900">
+                                        <?= rtrim(rtrim(number_format($row['place_average'], 2, ',', ''), '0'), ',') ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-sand-300" aria-label="nincs helyezése">&ndash;</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-center">
-                                <span class="badge badge-green tabular-nums font-bold">
+                                <span class="badge badge-neutral tabular-nums font-bold">
                                     <?= (int) $row['total'] ?>
                                 </span>
                             </td>
@@ -161,9 +194,17 @@ $medalClass = static function (int $position): string {
     </div>
 
     <p class="text-sm text-sand-500 mt-5 max-w-reading">
+        A sorrendet a <strong>helyezés</strong> adja, nem a pontszám: aki
+        hátrébb végzett, a nagyobb pontszámával sem kerül előre. Több verseny
+        esetén az átlagos helyezés dönt, ezért az is külön oszlopban látszik.
+        A versenyek alatt a helyezés a kiemelt szám, alatta a hozzá tartozó
+        pontszám.
+    </p>
+
+    <p class="text-sm text-sand-500 mt-3 max-w-reading">
         A fejlécben a verseny dátuma szerepel; a teljes név az oszlopra mutatva
         olvasható. A gondolatjel azt jelenti, hogy a játékos nem indult azon a
-        versenyen. Az állás a versenyenkénti pontokból számolódik, ezért a
+        versenyen. Az állás a felvitt eredményekből számolódik, ezért a
         szervezői javítás azonnal megjelenik itt is.
     </p>
 <?php endif; ?>

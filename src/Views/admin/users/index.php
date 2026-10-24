@@ -126,10 +126,15 @@
                                     </a>
 
                                     <!--
-                                        Jelszó visszaállítása: a rendszer új,
-                                        véletlen jelszót ad, és megmutatja - a
-                                        szervező adja át a tagnak. Megerősítést
-                                        kér, mert a régi jelszó azonnal érvénytelen.
+                                        Jelszó visszaállítása egy kattintással:
+                                        a rendszer új, véletlen jelszót ad, és
+                                        megmutatja - a szervező adja át a
+                                        tagnak. Megerősítést kér, mert a régi
+                                        jelszó azonnal érvénytelen.
+
+                                        Saját jelszó megadásához a szerkesztő
+                                        oldalon van mező; itt a táblázatban
+                                        nem lenne hely rá.
                                     -->
                                     <form method="POST" action="/admin/felhasznalok/<?= e($user['id']) ?>/jelszo"
                                           data-confirm="Új jelszót állítunk be <?= e($user['name']) ?> fiókjához. A mostani jelszava azonnal érvénytelen lesz, és minden eszközén kilép. Folytatod?">

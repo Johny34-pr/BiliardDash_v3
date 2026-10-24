@@ -177,23 +177,41 @@ class AuthService
     }
 
     /**
-     * Jelszó visszaállítása: új, véletlen jelszó beállítása.
+     * Jelszó visszaállítása a szervező által.
      *
      * Akkor kell, ha a tag nem tud belépni, és a szervező segít neki. A
-     * generált jelszót VISSZAADJA, mert a szervezőnek át kell adnia a tagnak
-     * - telefonon vagy személyesen. Ez az egyetlen pont, ahol a jelszó nyílt
-     * szövegként megjelenik; tárolni csak a lenyomatát tároljuk.
+     * beállított jelszót VISSZAADJA, mert a szervezőnek át kell adnia a
+     * tagnak - telefonon vagy személyesen. Ez az egyetlen pont, ahol a jelszó
+     * nyílt szövegként megjelenik; tárolni csak a lenyomatát tároljuk.
      *
+     * A $password elhagyásával a rendszer generál egyet. Megadva a szervező
+     * sajátot ír be: erre akkor van szükség, ha a jelszót telefonon kell
+     * lediktálni, és a generált, véletlen karaktersor nehezen érthető - vagy
+     * ha a klubban megszokott, egyeztetett kezdőjelszót adnak.
+     *
+     * A megadott jelszóra UGYANAZ a hosszkövetelmény érvényes, mint bárhol
+     * máshol: a szervezői jogkör nem ok arra, hogy gyengébb jelszó
+     * kerülhessen a rendszerbe.
+     *
+     * @param string|null $password Saját jelszó, vagy null a generáláshoz
      * @return string Az új, nyílt szövegű jelszó
-     * @throws AppException Ha a fiók nem létezik.
+     * @throws AppException Ha a fiók nem létezik, vagy a megadott jelszó rövid.
      */
-    public function resetPassword(string $id): string
+    public function resetPassword(string $id, ?string $password = null): string
     {
         if ($this->userModel->findById($id) === null) {
             throw AppException::notFound('A fiók nem található');
         }
 
-        $password = self::generatePassword();
+        if ($password !== null && $password !== '') {
+            if (mb_strlen($password) < self::MIN_PASSWORD_LENGTH) {
+                throw AppException::validationError(
+                    'A jelszó legalább ' . self::MIN_PASSWORD_LENGTH . ' karakter legyen'
+                );
+            }
+        } else {
+            $password = self::generatePassword();
+        }
 
         $this->userModel->updatePassword($id, password_hash($password, PASSWORD_DEFAULT));
 

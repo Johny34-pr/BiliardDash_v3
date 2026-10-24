@@ -15,6 +15,16 @@
 $navItems = [
     ['url' => '/',            'label' => 'Főoldal'],
     ['url' => '/galeria',     'label' => 'Galéria'],
+    // Almenüs pont: a 'children' kulcs jelenlétéből derül ki. A szülő maga is
+    // hivatkozás, hogy kattintással is eljuthass valahova - nem csak lenyíló.
+    [
+        'url' => '/versenyeink',
+        'label' => 'Versenyeink',
+        'children' => [
+            ['url' => '/versenyeink/kozelgo', 'label' => 'Közelgő versenyek'],
+            ['url' => '/versenyeink/korabbi', 'label' => 'Korábbi versenyek'],
+        ],
+    ],
     ['url' => '/nevezes',     'label' => 'Nevezés'],
     ['url' => '/rolunk',      'label' => 'Rólunk'],
     ['url' => '/emlekoldal',  'label' => 'Emlékoldal'],
@@ -58,16 +68,25 @@ if ($broadcast !== null) {
     <?php foreach ($navItems as $item): ?>
         <?php
         $external = !empty($item['external']);
+        $children = $item['children'] ?? [];
         // Külső címnél az isActive() amúgy sem találhat egyezést, mert az
         // aktuális útvonal csak az oldalon belüli rész
         $active = $external ? '' : isActive($item['url']);
         ?>
-        <li>
+        <li class="<?= $children !== [] ? 'relative group' : '' ?>">
             <a href="<?= e($item['url']) ?>"
                class="nav-link <?= $active ?>"
                <?= $active !== '' ? 'aria-current="page"' : '' ?>
                <?= $external ? 'target="_blank" rel="noopener noreferrer"' : '' ?>>
                 <?= e($item['label']) ?>
+
+                <?php if ($children !== []): ?>
+                    <!-- Lenyíló jelzés; a panel hoverre és fókuszra is megnyílik -->
+                    <svg class="inline-block w-3 h-3 ml-1 opacity-70" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                    </svg>
+                <?php endif; ?>
+
                 <?php if ($external): ?>
                     <!-- Jelzés, hogy a hivatkozás új lapon, külső oldalra visz -->
                     <svg class="inline-block w-3 h-3 ml-1 -mt-0.5 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -76,6 +95,41 @@ if ($broadcast !== null) {
                     <span class="sr-only">(új lapon nyílik)</span>
                 <?php endif; ?>
             </a>
+
+            <?php if ($children !== []): ?>
+                <!--
+                    Almenü. Szándékosan CSS-sel nyílik (group-hover és
+                    group-focus-within), nem JavaScripttel: így billentyűzettel
+                    tabolva is megnyílik, és a szkript hibája sem teheti
+                    elérhetetlenné a benne lévő oldalakat.
+
+                    A szülő maga is hivatkozás, ezért érintőkijelzőn - ahol
+                    nincs hover - a menüpontra koppintva a közelgő versenyek
+                    oldala nyílik meg, ahonnan mindkét alpont elérhető.
+
+                    A pt-1 a gomb és a panel közti rést hidalja át: nélküle a
+                    kurzor "kiesne" a group területéről, és a panel bezárulna,
+                    mielőtt elérnéd.
+                -->
+                <div class="hidden group-hover:block group-focus-within:block
+                            absolute left-1/2 -translate-x-1/2 top-full z-50 pt-1">
+                    <ul class="min-w-[13rem] py-2 rounded-xl bg-white border border-sand-200 shadow-lift">
+                        <?php foreach ($children as $child): ?>
+                            <?php $childActive = isActive($child['url']); ?>
+                            <li>
+                                <a href="<?= e($child['url']) ?>"
+                                   class="block px-4 py-2.5 text-sm font-medium transition-colors
+                                          <?= $childActive !== ''
+                                                ? 'text-billiard-green-700 bg-billiard-green-50'
+                                                : 'text-sand-700 hover:text-billiard-green-700 hover:bg-sand-50' ?>"
+                                   <?= $childActive !== '' ? 'aria-current="page"' : '' ?>>
+                                    <?= e($child['label']) ?>
+                                </a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
         </li>
     <?php endforeach; ?>
 </ul>

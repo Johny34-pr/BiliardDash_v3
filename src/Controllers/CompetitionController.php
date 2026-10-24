@@ -29,9 +29,12 @@ class CompetitionController
      */
     public function index(): void
     {
-        $competitions = $this->competitionService->getOpenCompetitions();
+        // A verseny NAPJÁIG listázunk, nem a nevezési határidőig: a határidő
+        // lejárta után is látható marad a kiírás és a nevezői névsor, ami a
+        // verseny napján a helyszínen a legfontosabb.
+        $competitions = $this->competitionService->getUpcomingCompetitions();
         $pageTitle = 'Versenynevezés - Okányi Biliárd Klub';
-        $metaDescription = 'Nyitott biliárdversenyek és online nevezés. '
+        $metaDescription = 'Közelgő biliárdversenyek és online nevezés. '
             . 'Nézd meg a versenyek dátumát, helyszínét és a nevezési határidőt.';
 
         // Render view within layout
@@ -40,6 +43,143 @@ class CompetitionController
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Versenyeink > Közelgő versenyek.
+     *
+     * Ugyanaz az adatkör, mint a Nevezés oldalon, de versenynaptár
+     * szemszögből. A kártyajelölés közös, ezért a kettő nem csúszhat el.
+     */
+    public function upcoming(): void
+    {
+        $competitions = $this->competitionService->getUpcomingCompetitions();
+        $pageTitle = 'Közelgő versenyek - Okányi Biliárd Klub';
+        $metaDescription = 'Az Okányi Biliárd Klub közelgő versenyei: dátum, '
+            . 'helyszín, nevezési határidő és nevezői névsor.';
+
+        ob_start();
+        require __DIR__ . '/../Views/competitions/upcoming.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Versenyeink > Korábbi versenyek.
+     *
+     * Évek szerint csoportosítva, mert szezononként több tucat verseny gyűlik
+     * össze, és egy folyamatos lista néhány év után átláthatatlan lenne.
+     */
+    public function past(): void
+    {
+        $competitions = $this->competitionService->getPastCompetitions();
+
+        $competitionsByYear = [];
+        $protocolCount = 0;
+
+        foreach ($competitions as $competition) {
+            $year = (int) date('Y', strtotime($competition['date']));
+            $competitionsByYear[$year][] = $competition;
+
+            if (!empty($competition['protocol_path'])) {
+                $protocolCount++;
+            }
+        }
+
+        // A findPast() dátum szerint csökkenően ad vissza, tehát az évek már
+        // helyes sorrendben keletkeztek - de a szándékot kiírjuk
+        krsort($competitionsByYear);
+
+        $totalCount = count($competitions);
+        $pageTitle = 'Korábbi versenyek - Okányi Biliárd Klub';
+        $metaDescription = 'Az Okányi Biliárd Klub lezárult versenyei: '
+            . 'nevezői névsorok és letölthető jegyzőkönyvek.';
+
+        ob_start();
+        require __DIR__ . '/../Views/competitions/past.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * A verseny jegyzőkönyvének letöltése.
+     *
+     * Nem közvetlen fájlhivatkozás, hanem letöltő végpont, két okból:
+     *   - a látogató az EREDETI fájlnevet kapja, nem a tárolt UUID-t;
+     *   - a tárolt útvonal nem szivárog ki a jelölésbe.
+     *
+     * A fájlt a feltöltési könyvtáron belülre korlátozzuk: egy hibás vagy
+     * manipulált adatbázis-bejegyzés különben bármely fájlt kiadhatná.
+     */
+    public function protocol(string $versenyId): void
+    {
+        $competition = $this->competitionService->getCompetitionById($versenyId);
+
+        if ($competition === null || empty($competition['protocol_path'])) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $publicRoot = dirname(__DIR__, 2) . '/public';
+        $uploadsRoot = realpath($publicRoot . '/uploads');
+        $path = realpath($publicRoot . '/' . ltrim((string) $competition['protocol_path'], '/'));
+
+        if ($uploadsRoot === false || $path === false
+            || !str_starts_with($path, $uploadsRoot . DIRECTORY_SEPARATOR)
+            || !is_file($path)
+        ) {
+            error_log('[CompetitionController] Jegyzőkönyv nem elérhető: ' . $competition['protocol_path']);
+            $this->renderNotFound();
+            return;
+        }
+
+        $filename = (string) ($competition['protocol_name'] ?? 'jegyzokonyv');
+
+        header('Content-Type: application/octet-stream');
+        header('Content-Length: ' . filesize($path));
+        // Kétféle filename: az egyszerű a régi böngészőknek, a filename* az
+        // ékezetes névhez (RFC 5987)
+        header(
+            'Content-Disposition: attachment; filename="' . $this->asciiFilename($filename) . '"; '
+            . "filename*=UTF-8''" . rawurlencode($filename)
+        );
+        header('X-Content-Type-Options: nosniff');
+
+        readfile($path);
+    }
+
+    /**
+     * A nyilvános nevezői lista CSV exportja.
+     *
+     * Csak azt az adatkört tartalmazza, ami az oldalon is látszik (sorszám,
+     * név, nevezés ideje). Az elérhetőségeket tartalmazó export a szervezői
+     * felületen marad.
+     */
+    public function exportRegistrants(string $versenyId): void
+    {
+        $competition = $this->competitionService->getCompetitionById($versenyId);
+
+        if ($competition === null) {
+            $this->renderNotFound();
+            return;
+        }
+
+        $csv = $this->competitionService->exportPublicRegistrantsCsv($versenyId);
+
+        // Beszédes fájlnév: a dátum és a verseny neve alapján, hogy a letöltött
+        // fájlok ne "nevezok.csv", "nevezok(1).csv" néven gyűljenek
+        $slug = $this->filenameSlug(
+            date('Y-m-d', strtotime($competition['date'])) . '-' . $competition['name']
+        );
+
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="nevezok-' . $slug . '.csv"');
+        header('Content-Length: ' . strlen($csv));
+        header('X-Content-Type-Options: nosniff');
+
+        echo $csv;
     }
 
     /**
@@ -242,6 +382,41 @@ class CompetitionController
         $content = ob_get_clean();
 
         require __DIR__ . '/../Views/layouts/main.php';
+    }
+
+    /**
+     * Fájlnév ASCII változata a Content-Disposition fejléchez.
+     *
+     * A fejléc nem hordozhat ékezetet biztonsággal, ezért az egyszerű
+     * filename= értékhez az ékezeteket alapbetűre cseréljük. A pontos nevet a
+     * filename*= paraméter viszi.
+     */
+    private function asciiFilename(string $name): string
+    {
+        $map = [
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ö' => 'o', 'ő' => 'o',
+            'ú' => 'u', 'ü' => 'u', 'ű' => 'u',
+            'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ö' => 'O', 'Ő' => 'O',
+            'Ú' => 'U', 'Ü' => 'U', 'Ű' => 'U',
+        ];
+
+        $ascii = strtr($name, $map);
+        $ascii = (string) preg_replace('/[^A-Za-z0-9._-]+/', '_', $ascii);
+        $ascii = trim($ascii, '_');
+
+        return $ascii !== '' ? $ascii : 'letoltes';
+    }
+
+    /**
+     * Fájlnévbe illeszthető azonosító egy szabad szövegből.
+     */
+    private function filenameSlug(string $text): string
+    {
+        $slug = strtolower($this->asciiFilename($text));
+        $slug = (string) preg_replace('/_+/', '-', $slug);
+        $slug = trim((string) preg_replace('/-+/', '-', $slug), '-');
+
+        return $slug !== '' ? substr($slug, 0, 80) : 'lista';
     }
 
     private function renderNotFound(): void

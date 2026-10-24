@@ -17,6 +17,8 @@ class Competition
     private const COLUMNS = 'c.id, c.season_id, c.name, c.date, c.venue,
                     c.registration_opens_at, c.registration_deadline,
                     c.registrant_count, c.created_at, c.updated_at,
+                    c.protocol_path, c.protocol_name, c.protocol_size,
+                    c.protocol_uploaded_at,
                     s.name AS season_name';
 
     /**
@@ -48,6 +50,51 @@ class Competition
              ' . self::FROM . '
              WHERE c.registration_deadline > NOW()
              ORDER BY c.date ASC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Közelgő versenyek: a verseny napja még nem volt.
+     *
+     * A szűrés a verseny DÁTUMÁRA megy, nem a nevezési határidőre. Így a
+     * verseny a határidő lejárta után is látható marad - egészen a verseny
+     * napjának végéig -, tehát a nevezői lista és a versenykiírás a helyszínen
+     * is elérhető. A findOpen() ettől eltérően azt mondja meg, hol lehet MÉG
+     * nevezni; a kettőt nem szabad összekeverni.
+     *
+     * A CURDATE() napra kerekít, ezért a mai nap még beleszámít.
+     *
+     * @return array<array<string, mixed>>
+     */
+    public function findUpcoming(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT ' . self::COLUMNS . '
+             ' . self::FROM . '
+             WHERE c.date >= CURDATE()
+             ORDER BY c.date ASC'
+        );
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Lezárult versenyek: a verseny napja elmúlt.
+     *
+     * A legfrissebb elöl, mert a visszatekintés jellemzően a legutóbbi
+     * versennyel kezdődik.
+     *
+     * @return array<array<string, mixed>>
+     */
+    public function findPast(): array
+    {
+        $stmt = $this->db->query(
+            'SELECT ' . self::COLUMNS . '
+             ' . self::FROM . '
+             WHERE c.date < CURDATE()
+             ORDER BY c.date DESC'
         );
 
         return $stmt->fetchAll();
@@ -164,6 +211,52 @@ class Competition
     public function delete(string $id): bool
     {
         $stmt = $this->db->prepare('DELETE FROM competitions WHERE id = :id');
+
+        return $stmt->execute([':id' => $id]);
+    }
+
+    /**
+     * A verseny jegyzőkönyvének rögzítése.
+     *
+     * Versenyenként EGY jegyzőkönyv van: az újabb feltöltés felülírja a
+     * korábbit. Az eredeti fájlnevet is eltároljuk, mert a tárolt név
+     * generált UUID - a látogató viszont beszédes nevet kap letöltéskor.
+     */
+    public function setProtocol(string $id, string $path, string $originalName, int $size): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE competitions
+             SET protocol_path = :path,
+                 protocol_name = :name,
+                 protocol_size = :size,
+                 protocol_uploaded_at = NOW()
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            ':id' => $id,
+            ':path' => $path,
+            ':name' => $originalName,
+            ':size' => $size,
+        ]);
+    }
+
+    /**
+     * A jegyzőkönyv hivatkozásának törlése a versenyről.
+     *
+     * Csak az adatbázis-mezőket üríti; a fájl törléséről a szolgáltatás
+     * gondoskodik, mert az a fájlrendszer dolga.
+     */
+    public function clearProtocol(string $id): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE competitions
+             SET protocol_path = NULL,
+                 protocol_name = NULL,
+                 protocol_size = NULL,
+                 protocol_uploaded_at = NULL
+             WHERE id = :id'
+        );
 
         return $stmt->execute([':id' => $id]);
     }

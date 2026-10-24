@@ -41,11 +41,21 @@ class RankingService
      *   rows:         játékosonként egy sor, a versenyenkénti pontokkal
      *                 (verseny azonosító => pont) és az összeggel
      *
-     * A rendezés: több pont előrébb; pontegyenlőségnél a több megszerzett
-     * versenypont-bejegyzés, végül a név betűrendje dönt. Így a holtverseny
-     * sem ad futásonként változó sorrendet.
+     * A rendezést a HELYEZÉS vezeti, nem a pontszám. Aki hátrébb végzett, a
+     * nagyobb pontszámával sem kerül előre - a helyezés az eredmény, a pont
+     * csak a belőle származtatott, a szervező által felülírható érték.
      *
-     * @return array{competitions:array<array{id:string, name:string, date:string}>, rows:array<array{player_name:string, user_id:?string, points:array<string,int>, total:int, played:int, position:int}>}
+     * A helyezés VERSENYENKÉNT értelmezett, egy játékosnak szezononként több
+     * is van, ezért a szezon rendezéséhez az ÁTLAGOS helyezés szolgál. Miért
+     * az átlag és nem az összeg: az összeg azt jutalmazná, aki kevesebb
+     * versenyen indult, hiszen kevesebb helyezés adódna össze nála.
+     *
+     * A teljes sorrend: átlagos helyezés növekvően, majd összpontszám
+     * csökkenően, majd a pontot szerzett versenyek száma, végül a név
+     * betűrendje - így a holtverseny sem ad futásonként változó sorrendet.
+     * Akinek egyetlen helyezése sincs, a helyezettek mögé kerül.
+     *
+     * @return array{competitions:array<array{id:string, name:string, date:string}>, rows:array<array{player_name:string, user_id:?string, points:array<string,int>, places:array<string,?int>, total:int, played:int, best_place:?int, place_average:?float, position:int}>}
      */
     public function getSeasonTable(string $seasonId): array
     {
@@ -78,8 +88,13 @@ class RankingService
                     'player_name' => $name,
                     'user_id' => $entry['user_id'],
                     'points' => [],
+                    'places' => [],
                     'total' => 0,
                     'played' => 0,
+                    'best_place' => null,
+                    'place_sum' => 0,
+                    'place_count' => 0,
+                    'place_average' => null,
                 ];
             }
 
@@ -90,28 +105,85 @@ class RankingService
             $players[$name]['total'] += $points;
             $players[$name]['played']++;
 
+            $place = $entry['place'] !== null ? (int) $entry['place'] : null;
+            $players[$name]['places'][$competitionId] = $place;
+
+            if ($place !== null) {
+                $players[$name]['place_sum'] += $place;
+                $players[$name]['place_count']++;
+
+                if ($players[$name]['best_place'] === null || $place < $players[$name]['best_place']) {
+                    $players[$name]['best_place'] = $place;
+                }
+            }
+
             // Ha bármelyik bejegyzésnél van fiók, azt megtartjuk
             if ($entry['user_id'] !== null) {
                 $players[$name]['user_id'] = $entry['user_id'];
             }
         }
 
+        // Az átlagos helyezés a rendezés kulcsa, ezért itt áll elő, egyszer
+        foreach ($players as $name => $player) {
+            $players[$name]['place_average'] = $player['place_count'] > 0
+                ? $player['place_sum'] / $player['place_count']
+                : null;
+        }
+
         $rows = array_values($players);
 
+        /*
+         * A szezon sorrendje. Szándékosan nem a tömb-összehasonlító
+         * rövidítéssel, mert a kulcsok iránya váltakozik (a helyezés
+         * növekvő, a pont csökkenő), és az egy soros alakban ez könnyen
+         * elromlik.
+         */
         usort($rows, static function (array $a, array $b): int {
-            return [$b['total'], $b['played'], $a['player_name']]
-                <=> [$a['total'], $a['played'], $b['player_name']];
+            // 1. A HELYEZÉS az elsődleges: kisebb átlag előrébb. A több pont
+            //    ezen NEM változtat - egy hátrébb végzett játékos a nagyobb
+            //    pontszámával sem kerül előre.
+            //    Akinek egyetlen helyezése sincs, a helyezettek MÖGÉ kerül.
+            $placeA = $a['place_average'] ?? INF;
+            $placeB = $b['place_average'] ?? INF;
+
+            if ($placeA !== $placeB) {
+                return $placeA <=> $placeB;
+            }
+
+            // 2. Azonos helyezés-átlagnál több pont előrébb
+            if ($a['total'] !== $b['total']) {
+                return $b['total'] <=> $a['total'];
+            }
+
+            // 3. Több versenyen szerzett pont előrébb
+            if ($a['played'] !== $b['played']) {
+                return $b['played'] <=> $a['played'];
+            }
+
+            // 4. Végül betűrend, hogy a sorrend futásonként ne változzon
+            return $a['player_name'] <=> $b['player_name'];
         });
 
-        // Helyezés: a holtverseny ugyanazt a helyet kapja, az utána
-        // következő pedig annyival lejjebb kerül, ahányan előtte állnak
+        /*
+         * Helyezés a táblázatban. Holtversenyt CSAK akkor jelölünk, ha a
+         * rendezés szerint is egyenlők: azonos helyezés-átlag ÉS azonos
+         * összpontszám. Ha bármelyik megkülönböztette őket, külön helyet
+         * kapnak - különben a táblázat két egymást követő sort ugyanazzal a
+         * számmal jelölne, miközben a sorrendjük szándékos.
+         *
+         * A holtverseny után a következő helyezés annyival ugrik, ahányan
+         * előtte állnak.
+         */
         $position = 0;
-        $previousTotal = null;
+        $previousKey = null;
 
         foreach ($rows as $index => $row) {
-            if ($previousTotal === null || $row['total'] !== $previousTotal) {
+            $key = ($row['place_average'] === null ? 'nincs' : (string) $row['place_average'])
+                . ':' . $row['total'];
+
+            if ($previousKey === null || $key !== $previousKey) {
                 $position = $index + 1;
-                $previousTotal = $row['total'];
+                $previousKey = $key;
             }
 
             $rows[$index]['position'] = $position;

@@ -10,7 +10,8 @@
  * nyilvános állásban, külön újraszámolás nélkül.
  *
  * @var array       $competition A verseny adatai
- * @var array       $entries     Felvitt pontszámok, a legtöbb ponttal az élen
+ * @var array       $entries     Felvitt pontszámok, HELYEZÉS szerinti sorrendben
+ *                               (a helyezés nélküliek a lista végén)
  * @var array       $errors      Validációs hibák (mező => üzenet)
  * @var array       $data        Az előző felvitel adatai (sticky form)
  * @var array|null  $editing     Az éppen szerkesztett pontszám, vagy null

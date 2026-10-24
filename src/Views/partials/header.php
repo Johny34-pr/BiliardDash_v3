@@ -78,6 +78,7 @@
             <?php foreach ($navItems as $item): ?>
                 <?php
                 $external = !empty($item['external']);
+                $children = $item['children'] ?? [];
                 $active = $external ? '' : isActive($item['url']);
                 ?>
                 <a href="<?= e($item['url']) ?>"
@@ -92,6 +93,23 @@
                         <span class="sr-only">(új lapon nyílik)</span>
                     <?php endif; ?>
                 </a>
+
+                <?php if ($children !== []): ?>
+                    <!--
+                        Almenü mobilon: nem lenyíló, hanem behúzva a szülő alatt.
+                        Egy koppintásra nyíló panel itt csak egy extra lépés
+                        lenne, a hely pedig megvan a felsorolásra.
+                    -->
+                    <?php foreach ($children as $child): ?>
+                        <?php $childActive = isActive($child['url']); ?>
+                        <a href="<?= e($child['url']) ?>"
+                           class="nav-link nav-link-mobile pl-9 text-sm <?= $childActive ?>"
+                           <?= $childActive !== '' ? 'aria-current="page"' : '' ?>>
+                            <span class="text-white/40 mr-2" aria-hidden="true">&ndash;</span>
+                            <?= e($child['label']) ?>
+                        </a>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             <?php endforeach; ?>
 
             <!-- ==== Belépés / látogatói fiók (mobil) ==== -->

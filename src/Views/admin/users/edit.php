@@ -150,4 +150,53 @@
             <a href="/admin/felhasznalok" class="btn btn-ghost mt-4">Mégse</a>
         </div>
     </form>
+
+    <!--
+        Jelszó visszaállítása
+        Külön űrlap a fenti adatmentéstől, mert más a kimenete: itt a
+        rendszer MEGMUTATJA a beállított jelszót, hogy a szervező át tudja
+        adni. A fenti mezőpár ezzel szemben csendben cserél jelszót.
+
+        A mező üresen hagyható: ilyenkor a rendszer generál egyet. Saját
+        jelszót akkor érdemes írni, ha telefonon kell lediktálni - egy
+        véletlen karaktersort nehéz félreértés nélkül átadni.
+    -->
+    <section class="mt-10" aria-labelledby="reset-heading">
+        <h2 id="reset-heading" class="text-xl font-semibold tracking-tightest text-billiard-green-900 mb-2">
+            Jelszó visszaállítása
+        </h2>
+        <p class="text-sm text-sand-500 mb-4 max-w-reading">
+            A beállított jelszót a mentés után <strong>egyszer megmutatjuk</strong>,
+            hogy át tudd adni. A tag minden eszközén kilép, és e-mailben
+            értesítést kap a változásról &ndash; a jelszót az e-mail nem
+            tartalmazza.
+        </p>
+
+        <div class="card p-6">
+            <form method="POST" action="/admin/felhasznalok/<?= e($user['id']) ?>/jelszo"
+                  class="space-y-4 max-w-md"
+                  data-confirm="Új jelszót állítunk be <?= e($user['name']) ?> fiókjához. A mostani jelszava azonnal érvénytelen lesz. Folytatod?">
+                <div>
+                    <label for="reset_password" class="label">Saját jelszó (nem kötelező)</label>
+                    <input type="password" id="reset_password" name="password"
+                           autocomplete="new-password"
+                           minlength="<?= \App\Services\AuthService::MIN_PASSWORD_LENGTH ?>"
+                           placeholder="Hagyd üresen a generáláshoz"
+                           class="field" aria-describedby="reset_password-hint">
+                    <p id="reset_password-hint" class="field-hint">
+                        Legalább <?= \App\Services\AuthService::MIN_PASSWORD_LENGTH ?> karakter.
+                        Üresen hagyva a rendszer könnyen diktálható jelszót generál,
+                        amelyből kimaradnak az összekeverhető karakterek (0/O, 1/l/I).
+                    </p>
+                </div>
+
+                <button type="submit" class="btn btn-secondary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>
+                    </svg>
+                    Jelszó beállítása
+                </button>
+            </form>
+        </div>
+    </section>
 </div>

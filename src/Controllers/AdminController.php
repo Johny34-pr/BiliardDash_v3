@@ -15,6 +15,7 @@ use App\Services\CompetitionService;
 use App\Services\AuthService;
 use App\Services\EmailService;
 use App\Services\ImageService;
+use App\Services\MediaService;
 use App\Services\PageService;
 use App\Services\NotificationService;
 use App\Services\RankingService;
@@ -990,8 +991,12 @@ class AdminController
             return;
         }
 
+        // Üresen hagyva a rendszer generál jelszót; kitöltve a szervező
+        // sajátot ad meg (pl. mert telefonon kell lediktálni)
+        $custom = trim((string) ($_POST['password'] ?? ''));
+
         try {
-            $password = $this->authService->resetPassword($id);
+            $password = $this->authService->resetPassword($id, $custom !== '' ? $custom : null);
             $this->rememberMeService->forgetAllForUser($id);
 
             // Külön flash kulcs: a nézet kiemelten, másolható módon jeleníti
@@ -1788,6 +1793,54 @@ class AdminController
         $this->competitionService->updateCompetition($id, $data);
         Session::flash('success', 'Verseny sikeresen frissítve!');
         redirect('/admin/versenyek');
+    }
+
+    /**
+     * Verseny jegyzőkönyvének feltöltése.
+     *
+     * A fájl ellenőrzését a MediaService végzi (típus a tartalomból, generált
+     * fájlnév, szkriptfuttatás tiltva a feltöltési könyvtárban).
+     */
+    public function protocolUpload(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $this->competitionService->uploadProtocol(
+                $id,
+                $_FILES['protocol'] ?? [],
+                new MediaService()
+            );
+
+            Session::flash('success', 'A jegyzőkönyv feltöltve.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Jegyzőkönyv feltöltési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A jegyzőkönyv feltöltése nem sikerült.');
+        }
+
+        redirect('/admin/versenyek/' . $id . '/szerkeszt');
+    }
+
+    /**
+     * Verseny jegyzőkönyvének törlése (a fájl is).
+     */
+    public function protocolDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $this->competitionService->deleteProtocol($id);
+            Session::flash('success', 'A jegyzőkönyv törölve.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Jegyzőkönyv törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A jegyzőkönyv törlése nem sikerült.');
+        }
+
+        redirect('/admin/versenyek/' . $id . '/szerkeszt');
     }
 
     /**

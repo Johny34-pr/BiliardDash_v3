@@ -45,6 +45,168 @@ class CompetitionService
     }
 
     /**
+     * Közelgő versenyek: a verseny napja még nem volt.
+     *
+     * A "Versenyeink > Közelgő versenyek" oldal és a nevezési lista is ezt
+     * használja. A szűrés a verseny DÁTUMÁRA megy, nem a nevezési határidőre,
+     * ezért a verseny a határidő lejárta után is látható marad a verseny
+     * napjáig - a nevezői névsor így a helyszínen is elérhető.
+     *
+     * @return array<array<string, mixed>>
+     */
+    public function getUpcomingCompetitions(): array
+    {
+        return $this->competitionModel->findUpcoming();
+    }
+
+    /**
+     * Lezárult versenyek, a legfrissebb elöl.
+     *
+     * @return array<array<string, mixed>>
+     */
+    public function getPastCompetitions(): array
+    {
+        return $this->competitionModel->findPast();
+    }
+
+    /**
+     * Jegyzőkönyv feltöltése egy versenyhez.
+     *
+     * A fájl ellenőrzését és mentését a MediaService végzi: a típust a
+     * tartalomból állapítja meg, a nevet újragenerálja, és a feltöltési
+     * könyvtárban a szkriptfuttatás tiltva van. Itt csak az eredeti nevet
+     * őrizzük meg, hogy a letöltés beszédes fájlnevet adjon.
+     *
+     * A korábbi jegyzőkönyv fájlja törlődik, különben minden újratöltés
+     * árván hagyna egy fájlt a lemezen.
+     *
+     * @param array $file A $_FILES egy eleme
+     * @throws AppException Ha a verseny nem létezik, vagy a fájl érvénytelen.
+     */
+    public function uploadProtocol(string $competitionId, array $file, MediaService $mediaService): void
+    {
+        $competition = $this->competitionModel->findById($competitionId);
+
+        if ($competition === null) {
+            throw AppException::notFound('A verseny nem található');
+        }
+
+        $stored = $mediaService->storeDocument($file);
+
+        // Az eredeti név megtisztítva: a letöltési fejlécbe kerül, ezért nem
+        // tartalmazhat útvonalat vagy vezérlőkaraktert
+        $originalName = $this->sanitizeFilename((string) ($file['name'] ?? 'jegyzokonyv'));
+
+        $previousPath = $competition['protocol_path'] ?? null;
+
+        $this->competitionModel->setProtocol(
+            $competitionId,
+            $stored['url'],
+            $originalName,
+            $stored['size']
+        );
+
+        if ($previousPath !== null && $previousPath !== $stored['url']) {
+            $this->removeProtocolFile($previousPath);
+        }
+    }
+
+    /**
+     * Jegyzőkönyv törlése: a fájl és a hivatkozás is.
+     *
+     * @throws AppException Ha a verseny nem létezik.
+     */
+    public function deleteProtocol(string $competitionId): void
+    {
+        $competition = $this->competitionModel->findById($competitionId);
+
+        if ($competition === null) {
+            throw AppException::notFound('A verseny nem található');
+        }
+
+        $path = $competition['protocol_path'] ?? null;
+
+        $this->competitionModel->clearProtocol($competitionId);
+
+        if ($path !== null) {
+            $this->removeProtocolFile($path);
+        }
+    }
+
+    /**
+     * A nyilvános nevezői lista CSV formában.
+     *
+     * Szándékosan CSAK a nyilvános adatkört tartalmazza (sorszám, név,
+     * nevezés ideje) - ugyanazt, ami az oldalon is látszik. Az e-mail címes,
+     * telefonszámos export az admin felületen marad.
+     *
+     * UTF-8 BOM-mal, hogy az Excel az ékezeteket helyesen nyissa meg.
+     */
+    public function exportPublicRegistrantsCsv(string $competitionId): string
+    {
+        $registrants = $this->getPublicRegistrants($competitionId);
+
+        $csv = "\xEF\xBB\xBF";
+        $csv .= "Sorszám,Név,Nevezés ideje\n";
+
+        foreach ($registrants as $index => $registrant) {
+            $csv .= ($index + 1) . ','
+                . $this->escapeCsvField($registrant['full_name']) . ','
+                . $this->escapeCsvField($registrant['registered_at']) . "\n";
+        }
+
+        return $csv;
+    }
+
+    /**
+     * Fájlnév megtisztítása a letöltési fejléchez.
+     *
+     * Az útvonal-részeket és a vezérlőkaraktereket eltávolítjuk: a név a
+     * Content-Disposition fejlécbe kerül, ahol egy sortörés fejléc-injektálást
+     * tenne lehetővé.
+     */
+    private function sanitizeFilename(string $name): string
+    {
+        $name = basename(str_replace('\\', '/', $name));
+        $name = (string) preg_replace('/[\x00-\x1F\x7F"]+/u', '', $name);
+        $name = trim($name);
+
+        if ($name === '') {
+            return 'jegyzokonyv';
+        }
+
+        return mb_substr($name, 0, 200);
+    }
+
+    /**
+     * A jegyzőkönyv fájljának törlése a lemezről.
+     *
+     * Védelem a könyvtárból kilépés ellen: csak a feltöltési könyvtáron belüli
+     * útvonalat fogadjuk el. Az adatbázisból jövő érték elvileg mindig onnan
+     * származik, de egy elírt vagy manipulált bejegyzés különben bármely
+     * fájlt törölhetné.
+     */
+    private function removeProtocolFile(string $relativePath): void
+    {
+        $publicRoot = dirname(__DIR__, 2) . '/public';
+        $uploadsRoot = realpath($publicRoot . '/uploads');
+        $target = realpath($publicRoot . '/' . ltrim($relativePath, '/'));
+
+        if ($uploadsRoot === false || $target === false) {
+            return;
+        }
+
+        if (!str_starts_with($target, $uploadsRoot . DIRECTORY_SEPARATOR)) {
+            error_log('[CompetitionService] Jegyzőkönyv törlés megtagadva (útvonal): ' . $relativePath);
+            return;
+        }
+
+        if (is_file($target)) {
+            @unlink($target);
+        }
+    }
+
+    /**
      * Egy verseny lekérdezése ID alapján.
      *
      * @return array{id:string, name:string, date:string, venue:string, registration_opens_at:?string, registration_deadline:string, registrant_count:int}|null

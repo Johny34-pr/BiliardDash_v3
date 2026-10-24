@@ -1238,6 +1238,18 @@ img.error-placeholder {
    8. NYOMTATÁS
    ========================================================================= */
 
+/*
+ * Csak nyomtatásban látszó elem. Képernyőn a hidden utility rejti el, itt
+ * pedig visszakapcsoljuk. Olyan adatokhoz kell, amelyek a képernyőn a
+ * környezetből kiderülnek, papíron viszont nem - például hogy melyik
+ * versenyhez tartozik a kinyomtatott névsor.
+ */
+@media print {
+    .print-only {
+        display: block !important;
+    }
+}
+
 @media print {
     .site-header,
     nav,
@@ -1249,6 +1261,20 @@ img.error-placeholder {
     .skip-link,
     .no-print {
         display: none !important;
+    }
+
+    /*
+     * Hosszú névsor több lapra: a sorok ne szakadjanak félbe, és a
+     * listafejléc maradjon a lista elején.
+     */
+    li,
+    tr {
+        page-break-inside: avoid;
+    }
+
+    ol,
+    ul {
+        page-break-before: auto;
     }
 
     body {

@@ -235,6 +235,10 @@ abstract class TestCase extends PHPUnitTestCase
                 registration_opens_at TEXT DEFAULT NULL,
                 registration_deadline TEXT NOT NULL,
                 registrant_count INTEGER DEFAULT 0,
+                protocol_path TEXT DEFAULT NULL,
+                protocol_name TEXT DEFAULT NULL,
+                protocol_size INTEGER DEFAULT NULL,
+                protocol_uploaded_at TEXT DEFAULT NULL,
                 created_at TEXT DEFAULT (datetime(\'now\')),
                 updated_at TEXT DEFAULT (datetime(\'now\')),
                 FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE SET NULL

@@ -30,7 +30,19 @@ class RankingEntry
     }
 
     /**
-     * Egy verseny pontszámai, a legtöbb ponttal az élen.
+     * Egy verseny pontszámai, a HELYEZÉS szerinti sorrendben.
+     *
+     * A rendezést a `place` vezeti, nem a pontszám. A helyezés az eredmény,
+     * a pont csak az abból származtatott érték - és a szervező felülírhatja.
+     * Ha a pontszám rendezne, akkor egy kézzel javított pont (például
+     * hiányzó miatti jóváírás) felcserélné a dobogót, holott a verseny
+     * végeredménye nem változott.
+     *
+     * A `place IS NULL` előtag teszi a helyezés nélküli bejegyzéseket a
+     * lista VÉGÉRE. Nélküle a MySQL és az SQLite is a NULL-t veszi
+     * legkisebbnek, így a helyezés nélküli sorok az első hely elé kerülnének.
+     * Ez az alak mindkét adatbázison ugyanazt adja - a tesztek SQLite-on
+     * futnak, az éles rendszer MySQL-en.
      *
      * @return array<array{id:string, competition_id:string, user_id:?string, player_name:string, points:int, place:?int}>
      */
@@ -40,7 +52,7 @@ class RankingEntry
             'SELECT id, competition_id, user_id, player_name, points, place
              FROM ranking_entries
              WHERE competition_id = :competition_id
-             ORDER BY points DESC, player_name ASC'
+             ORDER BY place IS NULL, place ASC, points DESC, player_name ASC'
         );
         $stmt->execute([':competition_id' => $competitionId]);
 
@@ -90,7 +102,8 @@ class RankingEntry
              FROM ranking_entries r
              INNER JOIN competitions c ON c.id = r.competition_id
              WHERE c.season_id = :season_id
-             ORDER BY c.date ASC, r.points DESC, r.player_name ASC'
+             ORDER BY c.date ASC, r.place IS NULL, r.place ASC,
+                      r.points DESC, r.player_name ASC'
         );
         $stmt->execute([':season_id' => $seasonId]);
 

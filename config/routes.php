@@ -26,6 +26,16 @@ $router->get('/galeria/archiv', 'GalleryController@archive');
 $router->get('/galeria/{albumId}', 'GalleryController@show');
 $router->get('/nevezes', 'CompetitionController@index');
 
+// === Versenyeink ===
+//
+// A közelgő és a lezárult versenyek külön oldalon. A konkrét útvonalak a
+// paraméteres minta ELŐTT szerepelnek, hogy a "kozelgo" és a "korabbi" szó
+// ne versenyazonosítóként értelmeződjön.
+$router->get('/versenyeink', 'CompetitionController@upcoming');
+$router->get('/versenyeink/kozelgo', 'CompetitionController@upcoming');
+$router->get('/versenyeink/korabbi', 'CompetitionController@past');
+$router->get('/versenyeink/{versenyId}/jegyzokonyv', 'CompetitionController@protocol');
+
 // Tartalmi oldalak. A Rólunk, az Emlékoldal, a Csapataink és az adatkezelési tájékoztató
 // szövege a szervezői felületen szerkeszthető; a Társhonlapok statikus.
 $router->get('/rolunk', 'PageController@about');
@@ -33,7 +43,9 @@ $router->get('/emlekoldal', 'PageController@memorial');
 $router->get('/tarshonlapok', 'PageController@partners');
 $router->get('/csapataink', 'PageController@teams');
 $router->get('/adatkezeles', 'PageController@privacy');
-// A nevezői lista belépés nélkül is elérhető (csak nevek, elérhetőségek nélkül)
+// A nevezői lista belépés nélkül is elérhető (csak nevek, elérhetőségek nélkül).
+// Az export ugyanezt az adatkört adja CSV-ben, ezért szintén nyilvános.
+$router->get('/nevezes/{versenyId}/nevezok/export', 'CompetitionController@exportRegistrants');
 $router->get('/nevezes/{versenyId}/nevezok', 'CompetitionController@registrants');
 $router->get('/nevezes/{versenyId}', 'CompetitionController@showForm');
 $router->post('/nevezes/{versenyId}', 'CompetitionController@submitRegistration');
@@ -130,6 +142,10 @@ $router->post('/admin/versenyek/{id}/ertesites', 'AdminController@competitionNot
 $router->get('/admin/versenyek/{id}/nevezesek', 'AdminController@registrationList');
 $router->post('/admin/versenyek/{id}/nevezesek', 'AdminController@registrationStore');
 $router->get('/admin/versenyek/{id}/export', 'AdminController@exportCsv');
+// Jegyzőkönyv feltöltése és törlése. A "torol" a paraméteres minta után
+// jön, ezért külön, hosszabb útvonalon szerepel.
+$router->post('/admin/versenyek/{id}/jegyzokonyv', 'AdminController@protocolUpload');
+$router->post('/admin/versenyek/{id}/jegyzokonyv/torol', 'AdminController@protocolDelete');
 // Egy konkrét nevezés törlése szervezői jogkörben
 $router->post('/admin/versenyek/nevezes/{id}/torol', 'AdminController@registrationDelete');
 
