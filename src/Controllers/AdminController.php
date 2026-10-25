@@ -8,6 +8,7 @@ use App\Core\AppException;
 use App\Core\Database;
 use App\Core\Session;
 use App\Models\CompetitionNotification;
+use App\Services\BroadcastService;
 use App\Services\CommentService;
 use App\Services\NewsService;
 use App\Services\GalleryService;
@@ -41,6 +42,7 @@ class AdminController
     private EmailService $emailService;
     private NotificationService $notificationService;
     private RankingService $rankingService;
+    private BroadcastService $broadcastService;
 
     public function __construct()
     {
@@ -60,6 +62,7 @@ class AdminController
         $this->seasonService = new SeasonService($db);
         $this->notificationService = new NotificationService($db, $this->emailService);
         $this->rankingService = new RankingService($db);
+        $this->broadcastService = new BroadcastService($db);
     }
 
     // =========================================================================
@@ -75,8 +78,12 @@ class AdminController
 
         $forumEnabled = $this->settingsService->isForumEnabled();
         $rankingEnabled = $this->settingsService->isRankingEnabled();
-        $broadcastUrl = (string) $this->settingsService->get(SettingsService::BROADCAST_URL, '');
         $broadcastLabel = (string) $this->settingsService->get(SettingsService::BROADCAST_LABEL, '');
+
+        // A közvetítések száma a beállítások oldalon is látszik: ebből derül
+        // ki, megjelenik-e egyáltalán a menüpont, amelynek a feliratát itt
+        // lehet átírni
+        $broadcastCount = $this->broadcastService->getMenuState()['total'];
         $pageTitle = 'Beállítások - Admin';
 
         ob_start();
@@ -104,23 +111,13 @@ class AdminController
         $this->settingsService->setEnabled(SettingsService::FORUM_ENABLED, $forumEnabled);
         $this->settingsService->setEnabled(SettingsService::RANKING_ENABLED, $rankingEnabled);
 
-        // A közvetítés címe szöveges beállítás: az üres érték azt jelenti,
-        // hogy a menüpont nem jelenik meg
-        $broadcastUrl = trim($_POST['broadcast_url'] ?? '');
-        $broadcastLabel = trim($_POST['broadcast_label'] ?? '');
-
-        // Érvénytelen sémát nem mentünk el: a menüben törött vagy veszélyes
-        // hivatkozás lenne belőle. A hibát jelezzük, a többi beállítás
-        // viszont mentődik - a szervező munkája nem veszik el.
-        $urlError = null;
-
-        if ($broadcastUrl !== '' && preg_match('#^https?://#i', $broadcastUrl) !== 1) {
-            $urlError = 'A közvetítés címe nem került mentésre: http:// vagy https:// kezdettel add meg.';
-        } else {
-            $this->settingsService->setValue(SettingsService::BROADCAST_URL, $broadcastUrl);
-        }
-
-        $this->settingsService->setValue(SettingsService::BROADCAST_LABEL, $broadcastLabel);
+        // A közvetítés menüpontjának felirata. A menüpont CÉLJA már nem
+        // beállítás: a közvetítések saját felületen, versenyenként kezelhetők
+        // (/admin/kozvetitesek), a menüpont pedig a listájukra visz.
+        $this->settingsService->setValue(
+            SettingsService::BROADCAST_LABEL,
+            trim($_POST['broadcast_label'] ?? '')
+        );
 
         // A modulok állapotváltozását külön kimondjuk: annak van a
         // legnagyobb következménye, mert menüpontok és útvonalak tűnnek el
@@ -141,10 +138,6 @@ class AdminController
         Session::flash('success', $changes === []
             ? 'A beállítások mentve.'
             : implode(' ', $changes));
-
-        if ($urlError !== null) {
-            Session::flash('error', $urlError);
-        }
 
         redirect('/admin/beallitasok');
     }
@@ -2064,6 +2057,169 @@ class AdminController
             Session::flash('error', $e->getMessage());
             redirect('/admin/versenyek');
         }
+    }
+
+    // =====================================================================
+    // Közvetítések
+    // =====================================================================
+
+    /**
+     * Közvetítések kezelése: lista, felvitel és szerkesztés egy oldalon.
+     *
+     * Ugyanaz a szerkezet, mint a szezonoknál: a közvetítés néhány mezőből
+     * áll, és a műveletei (élő jelzés, törlés) egy kattintásosak - ezért nem
+     * érdemes külön létrehozó és szerkesztő oldalra bontani.
+     */
+    public function broadcastList(): void
+    {
+        $this->requireAdmin();
+
+        $broadcasts = $this->broadcastService->getAll();
+
+        // A verseny választóhoz: a legfrissebb elöl, mert a közvetítés
+        // jellemzően a most zajló versenyhez tartozik
+        $competitions = $this->competitionService->getAllCompetitions();
+
+        $errors = Session::getFlash('broadcast_errors') ?: [];
+        $data = Session::getFlash('broadcast_data') ?: [];
+        $editId = $_GET['szerkeszt'] ?? null;
+        $menuLabel = $this->settingsService->getBroadcastLabel();
+        $pageTitle = 'Közvetítések - Admin';
+
+        ob_start();
+        require __DIR__ . '/../Views/admin/broadcasts/index.php';
+        $content = ob_get_clean();
+
+        require __DIR__ . '/../Views/layouts/admin.php';
+    }
+
+    /**
+     * Új közvetítés felvétele.
+     */
+    public function broadcastStore(): void
+    {
+        $this->requireAdmin();
+
+        $data = $this->broadcastInput();
+
+        try {
+            $id = $this->broadcastService->create($data);
+            $broadcast = $this->broadcastService->getById($id);
+
+            Session::flash('success', !empty($data['isLive'])
+                ? 'A közvetítés felvéve és élő adásként megjelölve: "'
+                    . ($broadcast['title'] ?? '') . '".'
+                : 'A közvetítés felvéve: "' . ($broadcast['title'] ?? '') . '".');
+        } catch (AppException $e) {
+            // A hiba a felviteli űrlapnál jelenik meg, a beírt adatokkal
+            // együtt - így nem kell újra kitölteni
+            Session::flash('broadcast_errors', ['new' => $e->getMessage()]);
+            Session::flash('broadcast_data', $data);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Közvetítés felvitel hiba: ' . $e->getMessage());
+            Session::flash('error', 'A közvetítés felvitele nem sikerült.');
+        }
+
+        redirect('/admin/kozvetitesek');
+    }
+
+    /**
+     * Közvetítés adatainak módosítása.
+     *
+     * Az élő jelzést nem érinti: azt a broadcastToggleLive() kapcsolja.
+     */
+    public function broadcastUpdate(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $this->broadcastService->update($id, $this->broadcastInput());
+            Session::flash('success', 'A közvetítés adatai mentve.');
+            redirect('/admin/kozvetitesek');
+            return;
+        } catch (AppException $e) {
+            Session::flash('broadcast_errors', [$id => $e->getMessage()]);
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Közvetítés mentési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A közvetítés mentése nem sikerült.');
+        }
+
+        // Hiba után a szerkesztő űrlap nyitva marad, hogy a javítás
+        // folytatható legyen
+        redirect('/admin/kozvetitesek?szerkeszt=' . urlencode($id));
+    }
+
+    /**
+     * Az élő jelzés be- vagy kikapcsolása.
+     *
+     * A rejtett mező a kívánt ÁLLAPOTOT küldi, nem a váltás tényét, így egy
+     * kétszer elküldött űrlap sem fordítja vissza.
+     */
+    public function broadcastToggleLive(string $id): void
+    {
+        $this->requireAdmin();
+
+        $live = ($_POST['live'] ?? '') === '1';
+
+        try {
+            $this->broadcastService->setLive($id, $live);
+            Session::flash('success', $live
+                ? 'A közvetítés élő adásként jelölve: a menüben is jelez.'
+                : 'Az élő jelzés levéve. A közvetítés a listában marad.');
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Közvetítés élő jelzés hiba: ' . $e->getMessage());
+            Session::flash('error', 'Az élő jelzés módosítása nem sikerült.');
+        }
+
+        redirect('/admin/kozvetitesek');
+    }
+
+    /**
+     * Közvetítés törlése.
+     *
+     * Csak a hivatkozás tűnik el az oldalról; a külső platformon (YouTube,
+     * Facebook) lévő felvételt ez nem érinti.
+     */
+    public function broadcastDelete(string $id): void
+    {
+        $this->requireAdmin();
+
+        try {
+            $broadcast = $this->broadcastService->getById($id);
+            $this->broadcastService->delete($id);
+            Session::flash(
+                'success',
+                'A közvetítés törölve: "' . ($broadcast['title'] ?? '') . '".'
+            );
+        } catch (AppException $e) {
+            Session::flash('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[AdminController] Közvetítés törlési hiba: ' . $e->getMessage());
+            Session::flash('error', 'A közvetítés törlése nem sikerült.');
+        }
+
+        redirect('/admin/kozvetitesek');
+    }
+
+    /**
+     * A közvetítés űrlapjának beolvasása.
+     *
+     * A felvitel és a módosítás ugyanazokat a mezőket küldi, ezért egy
+     * helyen olvassuk be őket - így nem csúszhat el a két ág.
+     *
+     * @return array{competitionId:string, title:string, url:string, date:string, isLive:bool}
+     */
+    private function broadcastInput(): array
+    {
+        return [
+            'competitionId' => trim($_POST['competition_id'] ?? ''),
+            'title' => trim($_POST['title'] ?? ''),
+            'url' => trim($_POST['url'] ?? ''),
+            'date' => trim($_POST['broadcast_date'] ?? ''),
+            'isLive' => isset($_POST['is_live']),
+        ];
     }
 
     // =====================================================================

@@ -38,14 +38,14 @@ if (forumEnabled()) {
     $footerPages[] = ['url' => '/forum', 'label' => 'Fórum'];
 }
 
-// Közvetítés: külső hivatkozás, csak beállított címmel jelenik meg
+// Közvetítés: a közvetítések listája (élő adás és a korábbiak archívuma).
+// Csak akkor jelenik meg, ha van felvett közvetítés.
 $footerBroadcast = broadcastLink();
 
 if ($footerBroadcast !== null) {
     $footerPages[] = [
         'url' => $footerBroadcast['url'],
         'label' => $footerBroadcast['label'],
-        'external' => true,
     ];
 }
 ?>

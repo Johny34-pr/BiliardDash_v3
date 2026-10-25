@@ -36,6 +36,17 @@ $router->get('/versenyeink/kozelgo', 'CompetitionController@upcoming');
 $router->get('/versenyeink/korabbi', 'CompetitionController@past');
 $router->get('/versenyeink/{versenyId}/jegyzokonyv', 'CompetitionController@protocol');
 
+// === Közvetítések ===
+//
+// Az élő adás és a korábbi közvetítések EGY oldalon, kereséssel: ami most
+// fut, az a lista élén áll, a többi a visszatekintés. A keresőszó és a
+// lapszám query paraméter (?kereses=, ?oldal=), amit a router nem is lát,
+// ezért nincs hozzájuk külön útvonal.
+//
+// Nem kapcsolható modul: közvetítés nélkül a menüpont magától nem jelenik
+// meg, az útvonal viszont él, hogy egy mentett hivatkozás ne adjon 404-et.
+$router->get('/kozvetitesek', 'BroadcastController@index');
+
 // Tartalmi oldalak. A Rólunk, az Emlékoldal, a Csapataink és az adatkezelési tájékoztató
 // szövege a szervezői felületen szerkeszthető; a Társhonlapok statikus.
 $router->get('/rolunk', 'PageController@about');
@@ -148,6 +159,19 @@ $router->post('/admin/versenyek/{id}/jegyzokonyv', 'AdminController@protocolUplo
 $router->post('/admin/versenyek/{id}/jegyzokonyv/torol', 'AdminController@protocolDelete');
 // Egy konkrét nevezés törlése szervezői jogkörben
 $router->post('/admin/versenyek/nevezes/{id}/torol', 'AdminController@registrationDelete');
+
+// Admin - Közvetítések
+// Lista, felvitel és szerkesztés egy oldalon, a szezonokhoz hasonlóan: a
+// közvetítés néhány mezőből áll, és a műveletei egy kattintásosak.
+// Az "uj" a paraméteres minták ELŐTT szerepel, hogy ne közvetítés
+// azonosítóként értelmeződjön.
+$router->get('/admin/kozvetitesek', 'AdminController@broadcastList');
+$router->post('/admin/kozvetitesek/uj', 'AdminController@broadcastStore');
+$router->post('/admin/kozvetitesek/{id}/szerkeszt', 'AdminController@broadcastUpdate');
+// Az élő jelzés külön művelet: egy kattintással kapcsolható, anélkül hogy a
+// szerkesztő űrlapot be kellene küldeni
+$router->post('/admin/kozvetitesek/{id}/elo', 'AdminController@broadcastToggleLive');
+$router->post('/admin/kozvetitesek/{id}/torol', 'AdminController@broadcastDelete');
 
 // Admin - Szerkesztő végpontjai (JSON, a TinyMCE hívja)
 $router->post('/admin/media/kep', 'AdminMediaController@uploadImage');

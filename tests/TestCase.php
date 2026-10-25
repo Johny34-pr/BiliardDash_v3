@@ -391,6 +391,23 @@ abstract class TestCase extends PHPUnitTestCase
             )
         ');
 
+        // Közvetítések: élő adások és a korábbiak archívuma. A versenyre
+        // mutató kulcs ON DELETE SET NULL, mert a felvett hivatkozás a
+        // verseny törlése után is tartalom marad.
+        $this->db->exec('
+            CREATE TABLE IF NOT EXISTS broadcasts (
+                id TEXT PRIMARY KEY,
+                competition_id TEXT DEFAULT NULL,
+                title TEXT NOT NULL,
+                url TEXT NOT NULL,
+                broadcast_date TEXT NOT NULL,
+                is_live INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime(\'now\')),
+                updated_at TEXT DEFAULT (datetime(\'now\')),
+                FOREIGN KEY (competition_id) REFERENCES competitions(id) ON DELETE SET NULL
+            )
+        ');
+
         // Kiküldött értesítések: az (competition_id, kind) egyediség a
         // kétszeres kiküldés elleni védelem
         $this->db->exec('

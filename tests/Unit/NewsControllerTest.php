@@ -41,6 +41,19 @@ class NewsControllerTest extends TestCase
             )
         ');
 
+        // A menü a közvetítések számát is megkérdezi: üresen hagyva a
+        // Közvetítés menüpont nem jelenik meg - ez is az éles alapállapot.
+        $this->pdo->exec('
+            CREATE TABLE broadcasts (
+                id TEXT PRIMARY KEY,
+                competition_id TEXT DEFAULT NULL,
+                title TEXT NOT NULL,
+                url TEXT NOT NULL,
+                broadcast_date TEXT NOT NULL,
+                is_live INTEGER NOT NULL DEFAULT 0
+            )
+        ');
+
         Database::setConnection($this->pdo);
 
         // Start session for layout

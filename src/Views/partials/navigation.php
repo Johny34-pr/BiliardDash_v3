@@ -45,16 +45,18 @@ if (forumEnabled()) {
     $navItems[] = ['url' => '/forum', 'label' => 'Fórum'];
 }
 
-// Közvetítés: KÜLSŐ hivatkozás, ezért 'external' jelzést kap. Csak akkor
-// jelenik meg, ha a szervező megadott hozzá címet a beállításokban - így
-// nem lehet üres menüpont.
+// Közvetítés: az oldalon belüli lista, nem közvetlenül a külső adás. Így a
+// korábbi közvetítések is elérhetők, nem csak a legutóbbi. Csak akkor
+// jelenik meg, ha van felvett közvetítés - üres listára nem visz menüpont.
+//
+// Élő adás alatt 'live' jelzést kap, amit a menüpont kiemelése jelenít meg.
 $broadcast = broadcastLink();
 
 if ($broadcast !== null) {
     $navItems[] = [
         'url' => $broadcast['url'],
         'label' => $broadcast['label'],
-        'external' => true,
+        'live' => $broadcast['live'],
     ];
 }
 ?>
@@ -68,6 +70,7 @@ if ($broadcast !== null) {
     <?php foreach ($navItems as $item): ?>
         <?php
         $external = !empty($item['external']);
+        $live = !empty($item['live']);
         $children = $item['children'] ?? [];
         // Külső címnél az isActive() amúgy sem találhat egyezést, mert az
         // aktuális útvonal csak az oldalon belüli rész
@@ -79,6 +82,14 @@ if ($broadcast !== null) {
                <?= $active !== '' ? 'aria-current="page"' : '' ?>
                <?= $external ? 'target="_blank" rel="noopener noreferrer"' : '' ?>>
                 <?= e($item['label']) ?>
+
+                <?php if ($live): ?>
+                    <!-- Most fut közvetítés: a menüpont maga jelzi, hogy van mit megnyitni -->
+                    <span class="inline-flex items-center gap-1 ml-1.5 text-billiard-gold-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-billiard-gold-400" aria-hidden="true"></span>
+                        <span class="text-[0.625rem] font-semibold uppercase tracking-wider">élő</span>
+                    </span>
+                <?php endif; ?>
 
                 <?php if ($children !== []): ?>
                     <!-- Lenyíló jelzés; a panel hoverre és fókuszra is megnyílik -->

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Database;
+use App\Services\BroadcastService;
 use App\Services\CommentService;
 use App\Services\CompetitionService;
 use App\Services\EmailService;
@@ -42,6 +43,7 @@ class SitemapController
     private CompetitionService $competitionService;
     private TopicService $topicService;
     private PageService $pageService;
+    private BroadcastService $broadcastService;
 
     public function __construct()
     {
@@ -50,6 +52,7 @@ class SitemapController
         $this->newsService = new NewsService($db);
         $this->galleryService = new GalleryService($db, new ImageService());
         $this->pageService = new PageService($db);
+        $this->broadcastService = new BroadcastService($db);
 
         // A nevezési e-maileket itt nem küldünk, de a service konstruktora
         // megkívánja a levelezőt, ezért a valós konfigurációval adjuk át.
@@ -145,6 +148,13 @@ class SitemapController
         // az oldaltérképbe: a kereső hibás hivatkozásként jelezné őket.
         if (forumEnabled()) {
             $urls[] = $this->url('/forum', null, 'daily', '0.7');
+        }
+
+        // A közvetítések oldala csak akkor tartalom, ha van felvett
+        // közvetítés. Üresen is elérhető (nem kapcsolható modul), de egy üres
+        // lista nem való az indexbe.
+        if ($this->broadcastService->getMenuState()['total'] > 0) {
+            $urls[] = $this->url('/kozvetitesek', null, 'weekly', '0.6');
         }
 
         return $urls;

@@ -26,6 +26,9 @@ if (rankingEnabled()) {
     $adminNav[] = ['url' => '/admin/ranglista', 'label' => 'Ranglista', 'exact' => false];
 }
 
+// A közvetítések a versenyekhez tartoznak: az adás egy verseny köré épül,
+// és a listában a verseny neve alapján keresnek rá a látogatók
+$adminNav[] = ['url' => '/admin/kozvetitesek', 'label' => 'Közvetítések', 'exact' => false];
 $adminNav[] = ['url' => '/admin/szezonok',     'label' => 'Szezonok',     'exact' => false];
 $adminNav[] = ['url' => '/admin/oldalak',      'label' => 'Oldalak',      'exact' => false];
 $adminNav[] = ['url' => '/admin/felhasznalok', 'label' => 'Felhasználók', 'exact' => false];

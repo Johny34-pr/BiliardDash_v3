@@ -78,6 +78,7 @@
             <?php foreach ($navItems as $item): ?>
                 <?php
                 $external = !empty($item['external']);
+                $live = !empty($item['live']);
                 $children = $item['children'] ?? [];
                 $active = $external ? '' : isActive($item['url']);
                 ?>
@@ -86,6 +87,13 @@
                    <?= $active !== '' ? 'aria-current="page"' : '' ?>
                    <?= $external ? 'target="_blank" rel="noopener noreferrer"' : '' ?>>
                     <?= e($item['label']) ?>
+                    <?php if ($live): ?>
+                        <!-- Most fut közvetítés -->
+                        <span class="inline-flex items-center gap-1 ml-1.5 text-billiard-gold-300">
+                            <span class="w-1.5 h-1.5 rounded-full bg-billiard-gold-400" aria-hidden="true"></span>
+                            <span class="text-[0.625rem] font-semibold uppercase tracking-wider">élő</span>
+                        </span>
+                    <?php endif; ?>
                     <?php if ($external): ?>
                         <svg class="inline-block w-3 h-3 ml-1 -mt-0.5 opacity-70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>

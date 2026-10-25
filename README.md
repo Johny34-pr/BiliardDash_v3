@@ -14,7 +14,7 @@ Az Okányi Biliárd Klub közösségi weboldala: hírek, fotógaléria és onlin
 - Nyitott versenyek listája és online nevezési űrlap
 - Visszaigazoló e-mail sikeres nevezés után
 - Ranglista: a szezon pontverseny-állása versenyenkénti bontásban, archívummal
-- Közvetítés menüpont: külső élő adásra mutató hivatkozás
+- Közvetítések: az élő adás és a korábbi adások archívuma egy oldalon, a **verseny nevére kereshetően**
 - Reszponzív elrendezés három töréspontra (mobil / tablet / asztali)
 - Nyilvános nevezői lista versenyenként, belépés nélkül is
 
@@ -45,7 +45,8 @@ Az Okányi Biliárd Klub közösségi weboldala: hírek, fotógaléria és onlin
 - Szezonok kezelése: létrehozás, aktuális kijelölése, archiválás
 - Körlevél a tagoknak a versenykiírásról és a nevezés megnyílásáról
 - Tagok jelszavának visszaállítása generált jelszóval
-- Kapcsolható modulok (fórum, ranglista) és a Közvetítés hivatkozása a beállítások oldalon
+- Közvetítések kezelése: felvitel versenyhez kötve, élő adás jelölése, korábbi adások szerkesztése és törlése
+- Kapcsolható modulok (fórum, ranglista) és a Közvetítés menüpont feliratának állítása a beállítások oldalon
 
 ## Technológiai stack
 
@@ -127,6 +128,8 @@ nyilvántartásba a korábbi migrációkat, hogy ne próbálja újra alkalmazni 
 | `010` | Szezonok, ranglista pontszámok, körlevél-napló, album-archiválás, közepes képméret |
 | `011` | Az adatkezelési tájékoztató kép- és videófelvételekről szóló szakasza |
 | `012` | Az adatkezelési tájékoztató önkiszolgáló fióktörlésről szóló szakasza |
+| `013` | Verseny jegyzőkönyve (`competitions.protocol_*`) |
+| `014` | Közvetítések (`broadcasts`); a `broadcast_url` beállítás értéke átkerül a táblába |
 
 XAMPP alatt Windows-on a PHP a `C:\xampp\php\php.exe`, a MySQL kliens a
 `C:\xampp\mysql\bin\mysql.exe` útvonalon található. Alternatívaként a
@@ -311,6 +314,10 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET | `/galeria/archiv` | `GalleryController@archive` |
 | GET | `/galeria/{albumId}` | `GalleryController@show` |
 | GET | `/nevezes` | `CompetitionController@index` |
+| GET | `/versenyeink`, `/versenyeink/kozelgo` | `CompetitionController@upcoming` |
+| GET | `/versenyeink/korabbi` | `CompetitionController@past` |
+| GET | `/versenyeink/{versenyId}/jegyzokonyv` | `CompetitionController@protocol` (letöltés) |
+| GET | `/kozvetitesek` | `BroadcastController@index` (`?kereses=`, `?oldal=`) |
 | GET | `/nevezes/{versenyId}` | `CompetitionController@showForm` |
 | GET | `/nevezes/{versenyId}/nevezok` | `CompetitionController@registrants` |
 | POST | `/nevezes/{versenyId}` | `CompetitionController@submitRegistration` |
@@ -363,6 +370,13 @@ A `REQUEST_URI` változatlan marad, így a Router az eredeti útvonalat kapja me
 | GET, POST | `/admin/versenyek/{id}/nevezesek` | `AdminController@registrationList`, `@registrationStore` |
 | GET | `/admin/versenyek/{id}/export` | `AdminController@exportCsv` |
 | POST | `/admin/versenyek/nevezes/{id}/torol` | `AdminController@registrationDelete` |
+| POST | `/admin/versenyek/{id}/jegyzokonyv` | `AdminController@protocolUpload` |
+| POST | `/admin/versenyek/{id}/jegyzokonyv/torol` | `AdminController@protocolDelete` |
+| GET | `/admin/kozvetitesek` | `AdminController@broadcastList` |
+| POST | `/admin/kozvetitesek/uj` | `AdminController@broadcastStore` |
+| POST | `/admin/kozvetitesek/{id}/szerkeszt` | `AdminController@broadcastUpdate` |
+| POST | `/admin/kozvetitesek/{id}/elo` | `AdminController@broadcastToggleLive` |
+| POST | `/admin/kozvetitesek/{id}/torol` | `AdminController@broadcastDelete` |
 | GET | `/admin/felhasznalok` | `AdminController@userList` |
 | GET, POST | `/admin/felhasznalok/{id}/szerkeszt` | `AdminController@userEdit`, `@userUpdate` |
 | POST | `/admin/felhasznalok/{id}/jelszo` | `AdminController@userResetPassword` |
@@ -694,7 +708,46 @@ pedig a naplótáblába.
 A versenyek listája oszlopban mutatja, melyik körlevél ment már ki, és melyik
 indítható még.
 
-## Kapcsolható modulok és a Közvetítés hivatkozás
+## Közvetítések
+
+A közvetítés egy külső élő adás (YouTube, Facebook) hivatkozása, jellemzően egy
+versenyhez kötve. Minden adás **önálló bejegyzés a `broadcasts` táblában**, ezért
+a korábbiak is megmaradnak: a `/kozvetitesek` oldalon a látogató a **verseny
+nevére keresve** bármelyik régebbi adást visszakeresi.
+
+> Korábban egyetlen beállítás (`broadcast_url`) tárolta az aktuális adás címét,
+> és az új cím mentésekor a régi felülíródott — a korábbi közvetítések
+> nyomtalanul eltűntek. A `014` migráció a beállítás értékét élő adásként
+> átmenti a táblába, majd törli a feleslegessé vált kulcsot.
+
+| Mező | Szerepe |
+| --- | --- |
+| `competition_id` | melyik versenyhez tartozik (`NULL` = klubest, bemutató). **A keresés alapja**, a verseny törlése `SET NULL`-ra állítja |
+| `title` | a megjelenő név; üresen hagyva a verseny nevét veszi át |
+| `url` | a külső adás címe, csak `http` és `https` sémával |
+| `broadcast_date` | az adás napja; üresen hagyva a verseny napja, enélkül a mai dátum |
+| `is_live` | fut-e most; ettől kerül a lista élére és kap jelzést a menüpont |
+
+**A keresés a verseny nevére ÉS a közvetítés nevére megy.** Az adatbázis
+`utf8mb4_unicode_ci` egybevetése miatt sem az ékezet, sem a kis- és nagybetű nem
+számít: az „okany kupa" megtalálja az „Okány Kupa" adásait. A beírt `%` és `_`
+nem joker, mert a `LIKE` minta `ESCAPE '!'` záradékkal védett.
+
+**Rendezés és lapozás.** Élő adás elöl, utána dátum szerint csökkenően
+(harmadik szinten `created_at`, hogy a lapozás ne ismételhessen elemet). Egy
+lapon 12 közvetítés; a keresőszó a lapozó hivatkozásokba is bekerül. A találati
+lista `noindex`, mert ugyanazt a tartalmat szűri, mint a teljes lista.
+
+**Menüpont.** A Közvetítés menüpont a listára visz, és csak akkor jelenik meg,
+ha van legalább egy felvett közvetítés — üres oldalra nem vezet menüpont. Élő
+adás alatt „élő" jelzést kap. A külső címre csak a kártyán lévő gomb visz, új
+lapon (`target="_blank" rel="noopener noreferrer"`).
+
+**Szervezői felület:** `/admin/kozvetitesek` — lista, felvitel és szerkesztés
+egy oldalon, az élő jelzés egy kattintással kapcsolható. A `/admin/beallitasok`
+oldalon már csak a menüpont **felirata** (`broadcast_label`) állítható.
+
+## Kapcsolható modulok
 
 A `/admin/beallitasok` oldalon állítható:
 
@@ -702,16 +755,11 @@ A `/admin/beallitasok` oldalon állítható:
 | --- | --- |
 | `forum_enabled` | a fórum menüpontja és **útvonalai**; kikapcsolva `404` |
 | `ranking_enabled` | a ranglista menüpontja és **útvonalai**; kikapcsolva `404` |
-| `broadcast_url` | a Közvetítés menüpont célja (külső cím) |
-| `broadcast_label` | a menüpont felirata, alapértelmezés: „Közvetítés" |
+| `broadcast_label` | a Közvetítés menüpont felirata, alapértelmezés: „Közvetítés" |
 
-**A Közvetítés szöveges beállítás, nem kapcsoló.** A menüpont akkor jelenik meg,
-ha van megadott cím — így nem állhat elő „bekapcsolva, de üres" állapot, ami
-törött menüpontot adna. A hivatkozás új lapon nyílik
-(`target="_blank" rel="noopener noreferrer"`).
-
-A cím sémáját a `getBroadcastLink()` ellenőrzi: csak `http` és `https` fogadható
-el, tehát egy `javascript:` kezdetű érték nem mentődik el.
+A közvetítés nem kapcsolható modul: a `/kozvetitesek` útvonal mindig él, hogy egy
+mentett hivatkozás ne adjon `404`-et, a menüpont viszont felvett közvetítés nélkül
+nem jelenik meg.
 
 ## Fórum
 
@@ -878,7 +926,8 @@ párhuzamos kérésnél elbukik:
 - **Feltöltés**: MIME típus (JPEG/PNG) és méret (max 10 MB) validáció, a feltöltési könyvtárban a PHP futtatás tiltva
 - **Admin hozzáférés**: session-alapú, `password_verify()` támogatással
 - **Nevezés**: a nevező neve és e-mail címe a fiókból származik, nem a beküldött adatokból — más nevében nem lehet nevezni
-- **Külső hivatkozás**: a Közvetítés címénél csak `http`/`https` séma fogadható el, és a link `rel="noopener noreferrer"` attribútummal nyílik
+- **Külső hivatkozás**: a közvetítések címénél csak `http`/`https` séma fogadható el (`BroadcastService`), és a link `rel="noopener noreferrer"` attribútummal nyílik
+- **Keresés**: a keresőszó előkészített utasítás paramétere, a `LIKE` joker karakterei (`%`, `_`) pedig `ESCAPE '!'` záradékkal hatástalanítva
 - **Generált jelszó**: `random_int()` alapú, csak a szervezőnek jelenik meg egyszer, e-mailben nem megy ki
 - **Kapcsolható modulok**: kikapcsolt állapotban az útvonalak nincsenek is regisztrálva, tehát a mentett hivatkozás sem ér el tartalmat
 

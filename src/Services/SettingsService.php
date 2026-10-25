@@ -26,15 +26,15 @@ class SettingsService
     public const RANKING_ENABLED = 'ranking_enabled';
 
     /**
-     * A közvetítés menüpont célja.
+     * A közvetítés menüpont felirata.
      *
-     * Szöveges beállítás, nem kapcsoló: a menüpont akkor jelenik meg, ha van
-     * megadva cím. Így egyetlen mező dönt a megjelenésről is - nem lehet
-     * "bekapcsolva, de üres" állapotba jutni, ami törött hivatkozást adna.
+     * A menüpont CÉLJA már nem beállítás: a közvetítések a broadcasts
+     * táblában élnek, és a menüpont a listájukra visz. Itt csak a felirat
+     * állítható (a "Közvetítés" szó helyett lehet "Élő adás" is).
+     *
+     * A menüpont akkor jelenik meg, ha van legalább egy felvett közvetítés -
+     * így nem lehet üres oldalra vezető menüpontot kapni.
      */
-    public const BROADCAST_URL = 'broadcast_url';
-
-    /** A közvetítés menüpont felirata */
     public const BROADCAST_LABEL = 'broadcast_label';
 
     /**
@@ -50,7 +50,6 @@ class SettingsService
     private const DEFAULTS = [
         self::FORUM_ENABLED => '0',
         self::RANKING_ENABLED => '1',
-        self::BROADCAST_URL => '',
         self::BROADCAST_LABEL => 'Közvetítés',
     ];
 
@@ -138,28 +137,16 @@ class SettingsService
     }
 
     /**
-     * A közvetítés menüpont adatai, vagy null ha nincs beállítva.
+     * A közvetítés menüpont felirata.
      *
-     * Csak http és https címet fogad el. Enélkül egy elírt vagy szándékosan
-     * beírt "javascript:" séma kerülhetne a menübe, ami a látogató
-     * böngészőjében futó kódot jelentene.
-     *
-     * @return array{url:string, label:string}|null
+     * Üresen hagyva az alapértelmezés érvényes, nem üres menüpont: a
+     * feliratot a szervező elhagyhatja, de névtelen menüpont nem lehet.
      */
-    public function getBroadcastLink(): ?array
+    public function getBroadcastLabel(): string
     {
-        $url = trim((string) $this->get(self::BROADCAST_URL, ''));
-
-        if ($url === '' || preg_match('#^https?://#i', $url) !== 1) {
-            return null;
-        }
-
         $label = trim((string) $this->get(self::BROADCAST_LABEL, ''));
 
-        return [
-            'url' => $url,
-            'label' => $label !== '' ? $label : 'Közvetítés',
-        ];
+        return $label !== '' ? $label : self::DEFAULTS[self::BROADCAST_LABEL];
     }
 
     /**

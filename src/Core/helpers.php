@@ -222,16 +222,21 @@ function rankingEnabled(): bool
 }
 
 /**
- * A közvetítés menüpont adatai, vagy null ha nincs beállítva.
+ * A közvetítés menüpont adatai, vagy null ha nincs mit mutatni.
  *
- * Egyetlen mező dönt a megjelenésről: ha nincs megadva cím, a menüpont sem
- * jelenik meg. Így nem lehet "bekapcsolva, de üres" állapotba jutni, ami
- * törött hivatkozást adna.
+ * A menüpont a közvetítések LISTÁJÁRA visz, nem közvetlenül a külső adásra.
+ * Korábban egyetlen beállított cím volt a cél, és az új adás felülírta a
+ * régit; mostantól a korábbi közvetítések is megmaradnak, és a verseny neve
+ * alapján visszakereshetők - ezért kell a saját oldal.
  *
- * A séma ellenőrzése a SettingsService-ben történik: csak http és https
- * címet fogad el, hogy egy "javascript:" séma ne kerülhessen a menübe.
+ * Felvett közvetítés nélkül a menüpont nem jelenik meg: üres lista nem
+ * érdemel helyet a menüben. Élő adás esetén a 'live' jelzőtől kap kiemelést.
  *
- * @return array{url:string, label:string}|null
+ * Adatbázishiba esetén null a válasz, és a hiba a naplóba kerül: egy hiányzó
+ * tábla vagy elromlott kapcsolat nem viheti magával az egész oldalt, hiszen
+ * ez a helper minden oldalbetöltésnél fut (fejléc és lábléc).
+ *
+ * @return array{url:string, label:string, live:bool}|null
  */
 function broadcastLink(): ?array
 {
@@ -245,10 +250,20 @@ function broadcastLink(): ?array
     $resolved = true;
 
     try {
-        $link = (new \App\Services\SettingsService(\App\Core\Database::getConnection()))
-            ->getBroadcastLink();
+        $db = \App\Core\Database::getConnection();
+        $state = (new \App\Services\BroadcastService($db))->getMenuState();
+
+        if ($state['total'] === 0) {
+            return null;
+        }
+
+        $link = [
+            'url' => '/kozvetitesek',
+            'label' => (new \App\Services\SettingsService($db))->getBroadcastLabel(),
+            'live' => $state['live'] > 0,
+        ];
     } catch (\Throwable $e) {
-        error_log('[helpers] A közvetítés hivatkozás betöltése nem sikerült: ' . $e->getMessage());
+        error_log('[helpers] A közvetítések betöltése nem sikerült: ' . $e->getMessage());
         $link = null;
     }
 

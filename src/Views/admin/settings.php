@@ -5,10 +5,10 @@
  * A kapcsolók azonnal érvényesek: a bekapcsolt modul útvonalai a következő
  * kéréstől elérhetők, a kikapcsolté 404-et adnak.
  *
- * @var bool   $forumEnabled   Aktív-e a fórum modul
- * @var bool   $rankingEnabled Aktív-e a ranglista modul
- * @var string $broadcastUrl   A közvetítés menüpont címe (üres = nincs menüpont)
- * @var string $broadcastLabel A közvetítés menüpont felirata
+ * @var bool   $forumEnabled    Aktív-e a fórum modul
+ * @var bool   $rankingEnabled  Aktív-e a ranglista modul
+ * @var string $broadcastLabel  A közvetítés menüpont felirata
+ * @var int    $broadcastCount  Ennyi közvetítés van felvéve
  */
 ?>
 <header class="mb-7">
@@ -99,53 +99,59 @@
 
     <!--
         Közvetítés
-        Nem kapcsoló, hanem cím: a menüpont akkor jelenik meg, ha van megadva
-        hivatkozás. Így nem lehet "bekapcsolva, de üres" állapotba jutni, ami
-        törött menüpontot adna.
+        A közvetítések CÍMEI már nem itt élnek: minden adás önálló
+        bejegyzés a Közvetítések felületen, versenyhez kötve, és a korábbiak
+        is megmaradnak. Itt csak a menüpont felirata állítható - a menüpont
+        maga akkor jelenik meg, ha van legalább egy felvett közvetítés.
     -->
     <section class="card p-6 md:p-7 mt-6" aria-labelledby="broadcast-heading">
         <h2 id="broadcast-heading" class="text-lg font-semibold tracking-tightest text-billiard-green-900 mb-1">
             Közvetítés
         </h2>
         <p class="text-sm text-sand-500 mb-6">
-            A menüpont egy külső oldalra visz, új lapon megnyitva - például egy
-            YouTube vagy Facebook élő közvetítésre. Ha a címet üresen hagyod, a
-            menüpont nem jelenik meg.
+            A menüpont a közvetítések listájára visz, ahol az élő adás áll az
+            élen, és a korábbi adások a verseny neve alapján visszakereshetők.
+            Az adások címét a <strong>Közvetítések</strong> felületen kell
+            felvinni; menüpont csak akkor jelenik meg, ha van felvett
+            közvetítés.
         </p>
 
-        <div class="space-y-4">
-            <div>
-                <label for="broadcast_url" class="label">Közvetítés címe</label>
-                <input type="url" id="broadcast_url" name="broadcast_url"
-                       value="<?= e($broadcastUrl) ?>"
-                       placeholder="https://www.youtube.com/@..."
-                       class="field" aria-describedby="broadcast-url-hint">
-                <p id="broadcast-url-hint" class="field-hint">
-                    http:// vagy https:// kezdettel. Más címsémát nem fogadunk el.
+        <div class="flex items-start gap-4 p-4 rounded-xl bg-sand-50 border border-sand-200 mb-5">
+            <div class="min-w-0">
+                <p class="font-semibold text-sand-900">
+                    Közvetítések
+                    <span class="badge <?= $broadcastCount > 0 ? 'badge-green' : 'badge-neutral' ?> ml-1.5">
+                        <?= (int) $broadcastCount ?> felvéve
+                    </span>
                 </p>
-            </div>
-
-            <div>
-                <label for="broadcast_label" class="label">Menüpont felirata</label>
-                <input type="text" id="broadcast_label" name="broadcast_label"
-                       value="<?= e($broadcastLabel) ?>"
-                       maxlength="30" placeholder="Közvetítés"
-                       class="field" aria-describedby="broadcast-label-hint">
-                <p id="broadcast-label-hint" class="field-hint">
-                    Üresen hagyva a menüpont felirata &bdquo;Közvetítés&rdquo; lesz.
+                <p class="text-sm text-sand-500 mt-1">
+                    <?php if ($broadcastCount > 0): ?>
+                        A menüpont látható. Az élő adás jelzése a Közvetítések
+                        felületen kapcsolható.
+                    <?php else: ?>
+                        Még nincs felvett közvetítés, ezért a menüpont nem
+                        jelenik meg a weboldalon.
+                    <?php endif; ?>
                 </p>
+                <a href="/admin/kozvetitesek" class="inline-flex items-center gap-1.5 text-sm font-semibold text-billiard-green-600 hover:underline mt-2">
+                    Közvetítések kezelése
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                </a>
             </div>
         </div>
 
-        <?php if ($broadcastUrl !== ''): ?>
-            <a href="<?= e($broadcastUrl) ?>" target="_blank" rel="noopener noreferrer"
-               class="inline-flex items-center gap-1.5 text-sm font-semibold text-billiard-green-600 hover:underline mt-4">
-                Hivatkozás kipróbálása
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
-                </svg>
-            </a>
-        <?php endif; ?>
+        <div>
+            <label for="broadcast_label" class="label">Menüpont felirata</label>
+            <input type="text" id="broadcast_label" name="broadcast_label"
+                   value="<?= e($broadcastLabel) ?>"
+                   maxlength="30" placeholder="Közvetítés"
+                   class="field" aria-describedby="broadcast-label-hint">
+            <p id="broadcast-label-hint" class="field-hint">
+                Üresen hagyva a menüpont felirata &bdquo;Közvetítés&rdquo; lesz.
+            </p>
+        </div>
 
         <div class="flex flex-wrap items-center gap-3 mt-6 pt-5 border-t border-sand-200">
             <button type="submit" class="btn btn-primary">
